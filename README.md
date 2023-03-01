@@ -2,7 +2,7 @@
 - 👀 I’m interested in Python
 - 🌱 I’m currently learning Python
 - 💞️ I’m looking to collaborate on Python project
-- 📫 How to reach me on email: nisalvnairda@gmail.com
+- 📫 How to reach me on email: vlasinadrian9@gmail.com
 
 <!---
 adrIAN9621/adrIAN9621 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
