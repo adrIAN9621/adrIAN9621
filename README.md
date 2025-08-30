@@ -1,7 +1,6 @@
 - 👋 Hi, I’m @adrIAN9621
-- 👀 I’m interested in Python
-- 🌱 I’m currently learning Python
-- 💞️ I’m looking to collaborate on Python project
+- 👀 I’m interested in Python, React and Java Script
+- 💞️ I’m looking to collaborate on Full Stack Projects
 - 📫 How to reach me on email: vlasinadrian9@gmail.com
 
 <!---
