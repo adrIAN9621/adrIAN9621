@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dispozitive – Colector RustDesk</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/logo.svg">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="/static/brand/logo.svg" alt="Carpatica Feroviar" width="40" height="40">
+        <span>Carpatica<br>Feroviar</span>
+      </div>
+      <nav>
+        <button class="nav-item active" data-tab="devices" type="button">Dispozitive</button>
+        <button class="nav-item" data-tab="audit" type="button">Jurnal audit</button>
+      </nav>
+    </aside>
+    <div class="main">
+      <header class="topbar">
+        <h1 id="page-title">Dispozitive RustDesk</h1>
+        <div class="topbar-right">
+          <span class="who">Autentificat: <strong>{{user}}</strong></span>
+          <form method="post" action="/logout"><button type="submit" class="btn-ghost">Deconectare</button></form>
+        </div>
+      </header>
+      <main class="content">
+        <section id="tab-devices" class="tab active">
+          <div class="toolbar">
+            <input id="search" type="search" placeholder="Caută după hostname, ID sau utilizator…" autocomplete="off">
+            <button id="refresh" type="button" class="btn-ghost">Reîmprospătează</button>
+          </div>
+          <div class="table-wrap">
+            <table id="devices-table">
+              <thead>
+                <tr>
+                  <th>Hostname</th>
+                  <th>ID RustDesk</th>
+                  <th>Utilizator</th>
+                  <th>Ultima raportare</th>
+                  <th>Vechime</th>
+                  <th>Parolă</th>
+                </tr>
+              </thead>
+              <tbody id="devices-body"></tbody>
+            </table>
+            <p id="devices-empty" class="empty" hidden>Niciun dispozitiv înregistrat încă.</p>
+          </div>
+        </section>
+        <section id="tab-audit" class="tab">
+          <div class="table-wrap">
+            <table id="audit-table">
+              <thead>
+                <tr>
+                  <th>Data și ora</th>
+                  <th>Tehnician</th>
+                  <th>Dispozitiv (ID)</th>
+                  <th>Hostname</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+            <p id="audit-empty" class="empty" hidden>Nicio dezvăluire de parolă înregistrată.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

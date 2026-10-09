@@ -1,0 +1,11 @@
+{
+  "host": "0.0.0.0",
+  "port": 8070,
+  "certfile": "certs/server.crt",
+  "keyfile": "certs/server.key",
+  "allow_insecure": false,
+  "db": "collector.db",
+  "ingest_token": "3NE4Xiu-T8MNpRbDDvXtTL_wUI1_8sQJ24uCr9O4Kv8",
+  "enc_secret": "uIpHG0c_H-vR-mFm-CBKN5e2GCVb2d30vdRVGCOFoBk",
+  "session_ttl": 3600
+}

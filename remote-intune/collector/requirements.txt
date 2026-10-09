@@ -1,0 +1,10 @@
+# Colector RustDesk – Carpatica Feroviar
+# Python 3.10+
+fastapi>=0.110
+uvicorn>=0.27
+cryptography>=42.0
+python-multipart>=0.0.9   # formulare de autentificare (POST /login)
+
+# Pentru teste:
+#   pytest>=8.0
+#   httpx>=0.27            # necesar pentru fastapi.testclient.TestClient

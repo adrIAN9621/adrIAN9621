@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autentificare – Colector RustDesk</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/logo.svg">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="login-brand">
+      <img src="/static/brand/logo.svg" alt="Carpatica Feroviar" width="56" height="56">
+      <div>
+        <h1>Colector RustDesk</h1>
+        <p>Carpatica Feroviar · IT intern</p>
+      </div>
+    </div>
+    <form method="post" action="/login" autocomplete="off">
+      <label for="username">Utilizator</label>
+      <input id="username" name="username" type="text" required autofocus>
+      <label for="password">Parolă</label>
+      <input id="password" name="password" type="password" required>
+      <p class="error">{{error}}</p>
+      <button type="submit">Autentificare</button>
+    </form>
+    <p class="hint">Acces rezervat tehnicienilor IT. Conexiune internă securizată.</p>
+  </main>
+</body>
+</html>
