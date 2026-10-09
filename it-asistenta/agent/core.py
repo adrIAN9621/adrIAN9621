@@ -53,6 +53,7 @@ class Callbacks:
         self.on_consent: Callable[[str, str], bool] = lambda tech, sid: False
         self.on_session_start: Callable[[str, list], None] = lambda tech, mons: None
         self.on_session_end: Callable[[str], None] = lambda reason: None
+        self.on_request_cancelled: Callable[[], None] = lambda: None
         self.on_chat: Callable[[str, str], None] = lambda text, frm: None
         self.on_view_only: Callable[[bool], None] = lambda v: None
         self.clipboard_get: Callable[[], Optional[str]] = lambda: None
@@ -227,6 +228,16 @@ class AgentCore:
             return
         if t == "request":
             threading.Thread(target=self._handle_request, args=(data,), daemon=True).start()
+            return
+        if t == "ended":
+            # serverul a încheiat sesiunea (tehnician deconectat, cerere expirată/anulată)
+            if self._session_id is not None:
+                self._end_session("server")
+            else:
+                try:
+                    self.cb.on_request_cancelled()
+                except Exception:
+                    pass
             return
         if self._session_id is None:
             return

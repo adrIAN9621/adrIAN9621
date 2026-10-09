@@ -88,6 +88,7 @@ class AgentUI:
         cb.on_consent = self._consent
         cb.on_session_start = lambda tech, mons: self._post(("session_start", tech))
         cb.on_session_end = lambda reason: self._post(("session_end", reason))
+        cb.on_request_cancelled = lambda: self._post(("consent_cancel", None))
         cb.on_chat = lambda text, frm: self._post(("chat", (frm, text)))
         cb.on_view_only = lambda v: None
         cb.clipboard_get = self._clipboard_get_async
@@ -162,6 +163,7 @@ class AgentUI:
         btns.pack(pady=14)
 
         def finish(value):
+            self._consent_finish = None
             result["value"] = value
             try:
                 win.grab_release()
@@ -187,6 +189,7 @@ class AgentUI:
         countdown.config(text="Refuz automat în 60 secunde")
         win.after(1000, tick)
         win.protocol("WM_DELETE_WINDOW", lambda: finish(False))
+        self._consent_finish = finish
 
     # --------------------------------------------------- bara de sesiune
     def _show_session_bar(self, tech):
@@ -319,6 +322,11 @@ _orig_dispatch = AgentUI._dispatch
 
 
 def _dispatch_with_consent(self, kind, payload):
+    if kind == "consent_cancel":
+        fin = getattr(self, "_consent_finish", None)
+        if fin:
+            fin(False)
+        return
     if kind == "consent":
         tech, result, done = payload
         self._show_consent_dialog(tech, result, done)

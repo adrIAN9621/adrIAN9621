@@ -13,6 +13,7 @@ from collections import defaultdict, deque
 from typing import Any, Optional
 from urllib.parse import urlparse
 
+import anyio
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -442,10 +443,11 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
             agent.closed = True
             if hub.agents.get(agent_id) is agent:
                 del hub.agents[agent_id]
-            if agent.session:
-                await hub.end_active_or_pending(agent.session, "Calculatorul s-a deconectat",
-                                                notify_agent=False)
-            await run_in_threadpool(db.touch_agent, agent_id)
+            with anyio.CancelScope(shield=True):
+                if agent.session:
+                    await hub.end_active_or_pending(agent.session, "Calculatorul s-a deconectat",
+                                                    notify_agent=False)
+                await run_in_threadpool(db.touch_agent, agent_id)
             log.info("Agent deconectat: %s", agent_id)
 
     async def handle_agent_msg(agent: AgentConn, obj: dict) -> None:
@@ -458,7 +460,10 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
             c = str(obj.get("code", ""))
             agent.code = c if CODE_RE.match(c) else None
         elif t == "accept":
-            if sess and sess.state == "pending" and obj.get("session_id") == sess.id:
+            if not (sess and sess.state == "pending" and obj.get("session_id") == sess.id):
+                # accept întârziat (cerere expirată sau anulată) – agentul trebuie să se oprească
+                await agent.send_json({"t": "ended", "reason": "Cererea a expirat sau a fost anulată."})
+            else:
                 mons = obj.get("monitors")
                 sess.monitors = mons if isinstance(mons, list) else []
                 sess.state = "active"
@@ -523,8 +528,9 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
         finally:
             tech.closed = True
             if tech.session:
-                await hub.end_active_or_pending(tech.session, "Tehnicianul s-a deconectat",
-                                                notify_tech=False)
+                with anyio.CancelScope(shield=True):
+                    await hub.end_active_or_pending(tech.session, "Tehnicianul s-a deconectat",
+                                                    notify_tech=False)
 
     async def handle_tech_msg(tech: TechConn, obj: dict) -> None:
         t = obj["t"]

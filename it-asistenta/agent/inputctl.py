@@ -129,7 +129,8 @@ class Injector:
         self._pressed_buttons.discard(b)
 
     def mouse_wheel(self, dx: int, dy: int):
-        self._mouse.scroll(dx or 0, dy or 0)
+        # browser: dy>0 = în jos; pynput: dy>0 = în sus
+        self._mouse.scroll(dx or 0, -(dy or 0))
 
     def key_down(self, code, key):
         k = resolve_key(code, key)

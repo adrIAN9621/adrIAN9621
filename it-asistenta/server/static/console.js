@@ -323,10 +323,13 @@
       case "cursor":
         break;
       case "view_only":
-        sess.viewOnly = !!m.value;
-        $("sess-viewonly").classList.toggle("hidden", !sess.viewOnly);
-        if (sess.viewOnly) { releaseAllKeys(); toast("Utilizatorul a activat „Doar vizualizare”. Controlul este blocat."); }
-        else toast("Controlul a fost reactivat de utilizator.");
+        {
+          const was = sess.viewOnly;
+          sess.viewOnly = !!m.value;
+          $("sess-viewonly").classList.toggle("hidden", !sess.viewOnly);
+          if (sess.viewOnly && !was) { releaseAllKeys(); toast("Utilizatorul a activat „Doar vizualizare”. Controlul este blocat."); }
+          else if (!sess.viewOnly && was) toast("Controlul a fost reactivat de utilizator.");
+        }
         break;
       case "clipboard":
         if (typeof m.text === "string") {
