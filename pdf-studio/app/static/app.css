@@ -1,55 +1,57 @@
-/* ===== Paletă carpatică: pânză de in, roșu de ie, negru de lână, verde de brad ===== */
+/* ===== Temă Carpatica Feroviar: albastru feroviar, galben semnal, oțel ===== */
 :root {
-  --bg: #f5efe3;
-  --surface: #fffcf6;
-  --surface-2: #f1e8d8;
-  --border: #e2d5bf;
-  --text: #2a1f17;
-  --muted: #7a6a58;
-  --primary: #b3261e;
-  --primary-hover: #941c16;
-  --primary-soft: #f8e3dc;
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f2f5f9;
+  --border: #d6dde7;
+  --text: #14202e;
+  --muted: #5e6b7c;
+  --primary: #0b4f8a;
+  --primary-hover: #093f6f;
+  --primary-soft: #e3eef9;
   --on-primary: #ffffff;
-  --ok: #2f6b3c;
-  --ok-soft: #e4efe2;
-  --warn: #a8670f;
-  --warn-soft: #fbefd6;
-  --err: #a3171d;
-  --err-soft: #f9e1df;
-  --shadow: 0 1px 2px rgba(60, 35, 15, .07), 0 6px 18px rgba(60, 35, 15, .07);
-  --radius: 12px;
-  --stage-bg: #e9dfcd;
-  --side-bg: #2a1f17;
-  --side-text: #f3e9d8;
-  --side-muted: #b8a68d;
-  --ink: #2a1f17;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, Cambria, serif;
+  --accent: #f2a900;
+  --ok: #1f7a3a;
+  --ok-soft: #e4f3e8;
+  --warn: #a86300;
+  --warn-soft: #fff1d6;
+  --err: #b42318;
+  --err-soft: #fdeaea;
+  --shadow: 0 1px 2px rgba(16, 32, 54, .06), 0 6px 18px rgba(16, 32, 54, .07);
+  --radius: 10px;
+  --stage-bg: #dfe5ec;
+  --side-bg: #0d2238;
+  --side-text: #e8eef6;
+  --side-muted: #93a5bb;
+  --ink: #0d2238;
+  --display: "Segoe UI", "Bahnschrift", "DIN Alternate", "Roboto Condensed", Arial, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15110d;
-    --surface: #1f1a14;
-    --surface-2: #2a231b;
-    --border: #3a3025;
-    --text: #f1e7d6;
-    --muted: #b3a28b;
-    --primary: #e0574c;
-    --primary-hover: #ec7268;
-    --primary-soft: #3a1c18;
-    --on-primary: #ffffff;
-    --ok: #7cc48a;
-    --ok-soft: #18291b;
-    --warn: #e7b04f;
-    --warn-soft: #30250f;
-    --err: #f07a72;
-    --err-soft: #361715;
+    --bg: #0b131d;
+    --surface: #121d2a;
+    --surface-2: #1a2737;
+    --border: #273649;
+    --text: #e6edf5;
+    --muted: #9aabbf;
+    --primary: #4d9be6;
+    --primary-hover: #6daff0;
+    --primary-soft: #14304d;
+    --on-primary: #06121f;
+    --accent: #ffc233;
+    --ok: #5fd08a;
+    --ok-soft: #12291c;
+    --warn: #f5b84a;
+    --warn-soft: #2e2410;
+    --err: #f2786d;
+    --err-soft: #341a18;
     --shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 6px 18px rgba(0, 0, 0, .3);
-    --stage-bg: #0f0c09;
-    --side-bg: #0f0c09;
-    --side-text: #f1e7d6;
-    --side-muted: #9d8b73;
-    --ink: #f1e7d6;
+    --stage-bg: #070d14;
+    --side-bg: #070f19;
+    --side-text: #e6edf5;
+    --side-muted: #8295ab;
+    --ink: #e6edf5;
     color-scheme: dark;
   }
 }
@@ -218,7 +220,7 @@ input.num { width: 4.5rem; padding: .25rem .4rem; }
 .small-stage .page-wrap img { width: 100%; }
 .page-overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
 .page-overlay.tool-none { cursor: default; }
-.sel-rect { position: absolute; border: 2px solid var(--primary); background: rgba(179, 38, 30, .14); pointer-events: none; }
+.sel-rect { position: absolute; border: 2px solid var(--primary); background: rgba(11, 79, 138, .14); pointer-events: none; }
 .sig-rect { border-color: #16a34a; background: rgba(22, 163, 74, .15); }
 .sig-rect::after { content: "Semnătură"; position: absolute; left: 4px; top: 2px; font: 600 11px/1.2 system-ui; color: #166534; }
 .op-mark { position: absolute; pointer-events: none; border: 1.5px dashed #9333ea; background: rgba(147, 51, 234, .08); }
@@ -340,71 +342,52 @@ input.num { width: 4.5rem; padding: .25rem .4rem; }
 @keyframes prog { from { left: -35%; } to { left: 100%; } }
 
 
-/* ================= Stil carpatic ================= */
+/* ================= Stil Carpatica Feroviar ================= */
 :root {
-  --stitch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M14 1l6 6-6 6-6-6z' fill='%23b3261e'/%3E%3Cpath d='M14 4.5l2.5 2.5-2.5 2.5-2.5-2.5z' fill='%23fffcf6'/%3E%3Cpath d='M13 6h2v2h-2z' fill='%232a1f17'/%3E%3Cpath d='M0 6h4v2H0zM24 6h4v2h-4zM3 3h2v2H3zM3 9h2v2H3zM23 3h2v2h-2zM23 9h2v2h-2z' fill='%232a1f17'/%3E%3C/svg%3E");
-  --stitch-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M14 1l6 6-6 6-6-6z' fill='%23e0574c'/%3E%3Cpath d='M14 4.5l2.5 2.5-2.5 2.5-2.5-2.5z' fill='%232a1f17'/%3E%3Cpath d='M0 6h4v2H0zM24 6h4v2h-4zM3 3h2v2H3zM3 9h2v2H3zM23 3h2v2h-2zM23 9h2v2h-2z' fill='%23f3e9d8'/%3E%3C/svg%3E");
+  /* șină cu traverse, folosită ca bandă decorativă */
+  --track: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='14' viewBox='0 0 24 14'%3E%3Cpath d='M4 1h4v12H4zM16 1h4v12h-4z' fill='%238a6a45'/%3E%3Cpath d='M0 3h24v2H0zM0 9h24v2H0z' fill='%23506274'/%3E%3C/svg%3E");
 }
-@media (prefers-color-scheme: dark) { :root { --stitch: var(--stitch-light); } }
-
-body {
-  background-color: var(--bg);
-  background-image: radial-gradient(rgba(120, 80, 40, .05) 1px, transparent 1px);
-  background-size: 6px 6px;
-}
-h1, h2, h3, .brand { font-family: var(--serif); letter-spacing: .01em; }
-h1 { font-size: 1.9rem; font-weight: 700; color: var(--ink); }
+h1, h2, h3, .brand { font-family: var(--display); letter-spacing: .005em; }
+h1 { font-size: 1.85rem; font-weight: 700; color: var(--ink); }
 .section > h1::after {
-  content: ""; display: block; height: 14px; width: 196px; margin: .55rem 0 .35rem;
-  background: var(--stitch) repeat-x left center;
+  content: ""; display: block; height: 14px; width: 240px; margin: .5rem 0 .4rem;
+  background: var(--track) repeat-x left center;
+  -webkit-mask: linear-gradient(90deg, #000 70%, transparent); mask: linear-gradient(90deg, #000 70%, transparent);
 }
 
-/* bara laterală: lână închisă, chenar cusut, munți la bază */
+/* bara laterală: albastru feroviar, munți și tren de marfă la bază */
 .sidebar {
-  background: var(--side-bg); color: var(--side-text); border-right: 0;
-  box-shadow: inset -14px 0 0 -10px transparent;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 150' preserveAspectRatio='none'%3E%3Cpath d='M0 150V92l30-26 22 16 38-46 30 30 24-20 40 44 26-22 30 26v56z' fill='%23574536' opacity='.55'/%3E%3Cpath d='M0 150v-34l40-30 26 18 34-28 36 30 28-18 30 22 46-30v70z' fill='%233f5a3a'/%3E%3Cpath d='M18 150l8-22 8 22zM56 150l7-18 7 18zM190 150l9-24 9 24zM212 150l6-16 6 16z' fill='%23243826'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='28' viewBox='0 0 14 28'%3E%3Cpath d='M7 8l6 6-6 6-6-6z' fill='%23e0574c'/%3E%3Cpath d='M7 11.5l2.5 2.5-2.5 2.5-2.5-2.5z' fill='%232a1f17'/%3E%3Cpath d='M6 0h2v4H6zM6 24h2v4H6zM3 3h2v2H3zM9 3h2v2H9zM3 23h2v2H3zM9 23h2v2H9z' fill='%23f3e9d8'/%3E%3C/svg%3E");
-  background-repeat: no-repeat, repeat-y;
-  background-size: 100% 150px, 14px 28px;
-  background-position: bottom left, right 6px top;
-  padding-right: 1.6rem;
+  background-color: var(--side-bg); color: var(--side-text); border-right: 4px solid var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 170' preserveAspectRatio='xMidYMax slice'%3E%3Cpath d='M0 130V88l34-30 24 18 40-44 34 34 26-20 42 40 40-30v74z' fill='%231d3a5a'/%3E%3Cpath d='M0 130v-22l44-26 28 16 36-24 40 26 30-14 62 30v14z' fill='%23264d74'/%3E%3Cg fill='%23f2a900'%3E%3Cpath d='M14 104h34l6 8v14H14z'/%3E%3Crect x='20' y='98' width='16' height='8' rx='1'/%3E%3C/g%3E%3Cpath d='M20 108h10v6H20z' fill='%230d2238'/%3E%3Cg fill='%238fa7c2'%3E%3Crect x='58' y='106' width='40' height='20' rx='1.5'/%3E%3Crect x='102' y='106' width='40' height='20' rx='1.5'/%3E%3Crect x='146' y='106' width='40' height='20' rx='1.5'/%3E%3Crect x='190' y='106' width='40' height='20' rx='1.5'/%3E%3C/g%3E%3Cg fill='%230d2238' opacity='.35'%3E%3Cpath d='M66 110h2v12h-2zM76 110h2v12h-2zM86 110h2v12h-2zM110 110h2v12h-2zM120 110h2v12h-2zM130 110h2v12h-2zM154 110h2v12h-2zM164 110h2v12h-2zM174 110h2v12h-2zM198 110h2v12h-2zM208 110h2v12h-2zM218 110h2v12h-2z'/%3E%3C/g%3E%3Cg fill='%23dfe7f1'%3E%3Ccircle cx='22' cy='128' r='3'/%3E%3Ccircle cx='44' cy='128' r='3'/%3E%3Ccircle cx='64' cy='128' r='3'/%3E%3Ccircle cx='92' cy='128' r='3'/%3E%3Ccircle cx='108' cy='128' r='3'/%3E%3Ccircle cx='136' cy='128' r='3'/%3E%3Ccircle cx='152' cy='128' r='3'/%3E%3Ccircle cx='180' cy='128' r='3'/%3E%3Ccircle cx='196' cy='128' r='3'/%3E%3Ccircle cx='224' cy='128' r='3'/%3E%3C/g%3E%3Cpath d='M0 133h240v3H0z' fill='%23506274'/%3E%3Cpath d='M6 136h6v6H6zM26 136h6v6h-6zM46 136h6v6h-6zM66 136h6v6h-6zM86 136h6v6h-6zM106 136h6v6h-6zM126 136h6v6h-6zM146 136h6v6h-6zM166 136h6v6h-6zM186 136h6v6h-6zM206 136h6v6h-6zM226 136h6v6h-6z' fill='%238a6a45'/%3E%3Cpath d='M0 142h240v28H0z' fill='%23091a2b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-size: 100% 170px; background-position: bottom left;
 }
-@media (prefers-color-scheme: dark) { .sidebar { background-color: var(--side-bg); } }
 .sidebar .brand { color: var(--side-text); }
-.side-brand { flex-direction: column; align-items: flex-start; gap: .15rem; padding: .5rem .5rem 1.25rem; font-size: 1.3rem; }
-.side-brand .brand-row { display: flex; align-items: center; gap: .6rem; }
-.brand-sub { font-family: system-ui, sans-serif; font-weight: 500; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--side-muted); padding-left: 2.6rem; }
-.nav-item { color: var(--side-text); opacity: .88; border-left: 3px solid transparent; border-radius: 0 8px 8px 0; }
+.side-brand { flex-direction: column; align-items: flex-start; gap: .2rem; padding: .5rem .5rem 1.1rem; margin-bottom: .5rem; border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.side-brand .brand-row { display: flex; align-items: center; gap: .65rem; font-size: 1.05rem; line-height: 1.15; }
+.brand-name small { display: block; font-weight: 500; font-size: .74rem; color: var(--side-muted); letter-spacing: .02em; }
+.brand-sub { font-family: system-ui, sans-serif; font-weight: 600; font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin-top: .45rem; }
+.nav-item { color: var(--side-text); opacity: .86; border-left: 3px solid transparent; border-radius: 0 8px 8px 0; }
 .nav-item:hover { background: rgba(255, 255, 255, .06); opacity: 1; }
-.nav-item.active { background: rgba(224, 87, 76, .16); color: #fff; opacity: 1; border-left-color: #e0574c; }
-.nav-item.active .ni { color: #f08a80; }
-.side-foot { color: var(--side-muted); margin-bottom: 120px; font-style: italic; }
+.nav-item.active { background: rgba(242, 169, 0, .14); color: #fff; opacity: 1; border-left-color: var(--accent); }
+.nav-item.active .ni { color: var(--accent); }
+.side-foot { color: var(--side-muted); margin-bottom: 150px; }
 
 .logo {
-  width: 32px; height: 32px; border-radius: 8px; background: #b3261e; font-size: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 5l11 11-11 11L5 16z' fill='%23fffcf6'/%3E%3Cpath d='M16 10l6 6-6 6-6-6z' fill='%23b3261e'/%3E%3Cpath d='M16 13.5l2.5 2.5-2.5 2.5-2.5-2.5z' fill='%232a1f17'/%3E%3Cpath d='M15 1h2v4h-2zM15 27h2v4h-2zM1 15h4v2H1zM27 15h4v2h-4z' fill='%23fffcf6'/%3E%3C/svg%3E");
-  background-size: cover; box-shadow: 0 0 0 2px rgba(255, 255, 255, .12);
+  width: 38px; height: 38px; flex: 0 0 38px; border-radius: 9px; font-size: 0;
+  background: url("brand/logo.svg") center / contain no-repeat;
 }
 
-/* carduri cu tiv cusut */
-.card { position: relative; overflow: hidden; border-color: var(--border); }
+/* carduri cu bandă de semnalizare */
+.card { position: relative; overflow: hidden; padding-top: 1.35rem; }
 .card::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px;
-  background: linear-gradient(90deg, #b3261e 0 33%, #2a1f17 33% 36%, #b3261e 36% 64%, #2a1f17 64% 67%, #b3261e 67%);
-  opacity: .9;
-}
-.card { padding-top: 1.4rem; }
-
-.btn { border-radius: 9px; }
-.btn.primary { box-shadow: 0 2px 0 #6e140f, 0 4px 12px rgba(179, 38, 30, .25); }
-.btn.primary:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 #6e140f; }
-
-input[type=text], input[type=password], input[type=email], input[type=url], input[type=number], select, textarea {
-  background: var(--surface); border-color: var(--border);
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+  background: linear-gradient(90deg, var(--primary) 0 85%, var(--accent) 85%);
 }
 
-.topbar { background: var(--side-bg) !important; color: var(--side-text); border-bottom: 0 !important; }
-.topbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: -14px; height: 14px; background: var(--stitch) repeat-x; }
+.btn { border-radius: 8px; }
+.btn.primary { box-shadow: 0 2px 8px rgba(11, 79, 138, .25); }
+.btn.primary:active:not(:disabled) { transform: translateY(1px); }
+
+.topbar { background: var(--side-bg) !important; color: var(--side-text); border-bottom: 3px solid var(--accent) !important; }
 .topbar .icon-btn { color: var(--side-text); }
+.topbar .brand { font-size: 1rem; }

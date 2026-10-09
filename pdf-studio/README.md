@@ -1,4 +1,6 @@
-# PDF Studio – aplicație locală pentru PDF
+# PDF Studio – Carpatica Feroviar România SA
+
+Instrument intern pentru documente PDF.
 
 O aplicație pentru uz personal sau intern, care rulează doar pe calculatorul tău (`http://127.0.0.1:8765`). Acoperă funcțiile Adobe Acrobat folosite cel mai des:
 
@@ -53,3 +55,9 @@ pytest -q
 - Editarea unui PDF deja semnat invalidează semnăturile. Aplicația te avertizează când se întâmplă asta.
 - Conversia PDF → Word reproduce bine documentele de tip text. Documentele scanate (imagini) nu devin text editabil fără OCR.
 - Lista certificatelor de încredere folosește rădăcinile sistemului. Pentru CA-urile calificate din România care lipsesc, încarcă certificatul rădăcină la validare.
+
+## Identitate vizuală
+Tema folosește culorile albastru feroviar și galben de semnalizare, iar în bara laterală apare un tren de marfă.
+Sigla din aplicație este provizorie. Pentru sigla oficială, înlocuiți fișierul `app/static/brand/logo.svg`
+cu sigla companiei, păstrând același nume. Culorile se schimbă din `app/static/app.css`, secțiunea `:root`
+(`--primary` și `--accent`).
