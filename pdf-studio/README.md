@@ -74,3 +74,11 @@ Tema folosește culorile albastru feroviar și galben de semnalizare, iar în ba
 Sigla din aplicație este provizorie. Pentru sigla oficială, înlocuiți fișierul `app/static/brand/logo.svg`
 cu sigla companiei, păstrând același nume. Culorile se schimbă din `app/static/app.css`, secțiunea `:root`
 (`--primary` și `--accent`).
+
+## Instalator Windows (setup cu scurtătură pe desktop)
+Pentru un instalator normal (`PDF-Studio-Setup.exe`) care instalează aplicația și pune scurtătură pe desktop:
+1. Pe un PC cu Windows + Python, instalează o dată **Inno Setup** (gratuit): https://jrsoftware.org/isdl.php
+2. Dublu-clic pe `pdf-studio\build_installer.bat`.
+3. Rezultatul: `pdf-studio\installer\Output\PDF-Studio-Setup.exe`.
+
+Acel fișier e instalatorul: îl copiezi pe orice laptop, dublu-clic, Next-Next, și apare scurtătura pe desktop ca la orice program.
