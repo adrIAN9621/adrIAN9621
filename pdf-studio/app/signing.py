@@ -32,10 +32,11 @@ from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign import fields as sig_fields
 from pyhanko.sign import signers
 from pyhanko.sign.fields import SigFieldSpec, SigSeedSubFilter
-from pyhanko.sign.general import KeyUsageConstraints
+from pyhanko.sign.validation.settings import KeyUsageConstraints
 from pyhanko.sign.timestamps import HTTPTimeStamper
 from pyhanko.sign.validation import async_validate_pdf_signature
 from pyhanko.stamp import TextStampStyle
+from pyhanko.pdf_utils import layout
 from pyhanko.pdf_utils.text import TextBoxStyle
 from pyhanko_certvalidator import ValidationContext
 
@@ -445,6 +446,54 @@ def _ascii_fallback(s: str) -> str:
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
 
 
+def _make_font_factory(font_path: str):
+    """Fabrică de fonturi TrueType cu metrici normalizate la 1000 unități/em.
+
+    pyHanko scrie lățimile (/W) și ajustările TJ în unitățile fontului; PDF
+    cere 1/1000 em, deci fonturile cu unitsPerEm=2048 (DejaVu, Arial) ar ieși
+    cu spațiere dublă. Scalăm fontul HarfBuzz și lățimile la 1000."""
+    import dataclasses
+
+    from pyhanko.pdf_utils.font.opentype import GlyphAccumulator, GlyphAccumulatorFactory
+
+    class _ScaledGlyphAccumulator(GlyphAccumulator):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._upem_orig = self.units_per_em
+            if self._upem_orig and self._upem_orig != 1000:
+                self.hb_font.scale = (1000, 1000)
+                self.units_per_em = 1000
+
+        def _get_cid_and_width(self, glyph_id):
+            if glyph_id in self._glyphs:
+                return self._glyphs[glyph_id]
+            cid, width = super()._get_cid_and_width(glyph_id)
+            if self._upem_orig and self._upem_orig != 1000:
+                width = int(round(width * 1000 / self._upem_orig))
+                self._glyphs[glyph_id] = (cid, width)
+            return cid, width
+
+    @dataclasses.dataclass(frozen=True)
+    class _Factory(GlyphAccumulatorFactory):
+        def create_font_engine(self, writer, obj_stream=None):
+            with open(self.font_file, "rb") as fh:
+                data = fh.read()
+            if obj_stream is None and writer.stream_xrefs and self.create_objstream_if_needed:
+                obj_stream = writer.prepare_object_stream()
+            return _ScaledGlyphAccumulator(
+                writer=writer,
+                font_handle=BytesIO(data),
+                font_size=self.font_size,
+                ot_script_tag=self.ot_script_tag,
+                ot_language_tag=self.ot_language_tag,
+                writing_direction=self.writing_direction,
+                bcp47_lang_code=self.bcp47_lang_code,
+                obj_stream=obj_stream,
+            )
+
+    return _Factory(font_path)
+
+
 def _stamp_style(reason: str | None, location: str | None) -> tuple[TextStampStyle, dict]:
     lines = ["Semnat digital de:", "%(signer)s", "Data: %(ts)s"]
     params: dict[str, str] = {}
@@ -456,20 +505,30 @@ def _stamp_style(reason: str | None, location: str | None) -> tuple[TextStampSty
         params["loc"] = location
     text = "\n".join(lines)
     font_path = _find_font()
+    factory = None
     if font_path:
-        from pyhanko.pdf_utils.font.opentype import GlyphAccumulatorFactory
-
-        box_style = TextBoxStyle(font=GlyphAccumulatorFactory(font_path), font_size=9)
+        try:  # necesită pyHanko[opentype] (fonttools + uharfbuzz)
+            factory = _make_font_factory(font_path)
+        except ImportError:
+            factory = None
+    if factory is not None:
+        box_style = TextBoxStyle(font=factory, font_size=9, leading=11)
     else:  # font standard Courier, fără diacritice
         text = _ascii_fallback(text)
         params = {k: _ascii_fallback(v) for k, v in params.items()}
-        box_style = TextBoxStyle(font_size=9)
+        box_style = TextBoxStyle(font_size=9, leading=11)
     style = TextStampStyle(
         stamp_text=text,
         text_box_style=box_style,
         timestamp_format="%d.%m.%Y %H:%M:%S %z",
         border_width=1,
         background=None,
+        inner_content_layout=layout.SimpleBoxLayoutRule(
+            x_align=layout.AxisAlignment.ALIGN_MIN,
+            y_align=layout.AxisAlignment.ALIGN_MID,
+            margins=layout.Margins.uniform(4),
+            inner_content_scaling=layout.InnerScaling.SHRINK_TO_FIT,
+        ),
     )
     return style, params
 
