@@ -55,8 +55,10 @@ jobs:
           name: PDF-Studio-Windows
           path: pdf-studio/dist/PDF-Studio.exe
 
-      - name: Atașează la Release (doar la tag)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publică Release descărcabil
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-latest' }}
+          name: Aplicații Windows (ultima versiune)
+          body: "PDF Studio pentru Windows. Descărcați PDF-Studio.exe de mai jos și dați dublu-clic."
           files: pdf-studio/dist/PDF-Studio.exe
