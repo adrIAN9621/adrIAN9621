@@ -12,6 +12,19 @@ O aplicație pentru uz personal sau intern, care rulează doar pe calculatorul t
 | **Editare PDF** | Text (cu diacritice), evidențiere, dreptunghiuri, acoperire albă, ștergere definitivă (redactare), imagini, note, înlocuire text, rotire/ștergere/mutare/inserare pagini, metadate, combinare, împărțire, comprimare, extragere text |
 | **Fluxuri de semnare pe e-mail** | Stabilești ordinea semnatarilor după adresa de e-mail. Fiecare primește documentul pe rând, îl semnează și răspunde cu PDF-ul semnat. Aplicația preia răspunsul (automat prin IMAP sau prin încărcare manuală), verifică semnăturile, apoi trimite documentul următorului semnatar. La final, toți primesc documentul complet. |
 
+## Descărcare ca aplicație Windows (.exe, fără Python)
+Dacă nu vrei să instalezi Python, poți folosi un singur fișier `PDF-Studio.exe`:
+
+**Varianta 1 – construit automat pe GitHub (recomandat):**
+1. Pe GitHub, în repo, deschide tab-ul **Actions → „Construire aplicații Windows” → Run workflow** (alege ramura `claude/pdf-studio`).
+2. Aștepți ~5 minute să se termine (bifă verde).
+3. Intri în rularea respectivă și descarci, din secțiunea **Artifacts**, arhiva **PDF-Studio-Windows**. Înăuntru e `PDF-Studio.exe`.
+4. Dublu-clic pe `.exe` → se deschide în browser. Fără instalare.
+
+**Varianta 2 – construit local:** pe un PC cu Windows + Python, rulează `pdf-studio\build_exe.bat`. Rezultatul e `pdf-studio\dist\PDF-Studio.exe`.
+
+> Pentru conversia Word ↔ PDF e nevoie, și cu `.exe`, de **LibreOffice** instalat pe PC. Restul funcțiilor (semnare, validare, editare) merg fără nimic în plus.
+
 ## Instalare
 
 ### Windows
