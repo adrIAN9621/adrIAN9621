@@ -89,9 +89,20 @@ Pe fiecare laptop: copiați folderul, click dreapta pe **`Instaleaza-Manual.bat`
 
 ---
 
+## Colectarea automată a ID/parolă în Intune (Remediations)
+Folderul `remediation/` conține un pachet **Intune → Devices → Remediations**:
+- `Detect-DeviceInfo.ps1` – marchează neconform laptopul care nu și-a raportat încă datele (scrie în portalul Intune doar ID-ul + hostname; **niciodată parola**).
+- `Remediate-ReportDeviceInfo.ps1` – trimite ID + parola + hostname către colectorul intern (`../collector`), peste HTTPS, cu token. Editați `$REPORT_URL` și `$REPORT_TOKEN` în el.
+
+În Intune: **Devices → Remediations → Create**, încărcați cele două scripturi, bifați **Run script in 64-bit PowerShell**, rulați în context de **system**, pe un program zilnic. Astfel ID-urile și parolele ajung singure în colector, fără să umblați pe fiecare laptop.
+
+## Clientul tehnicianului
+Pe stația fiecărui tehnician, rulați o dată ca administrator **`Configure-TechnicianClient.ps1`** (completați în el `$RD_HOST` și `$RD_KEY`). Instalează clientul RustDesk (fără serviciu) și îi aplică serverul companiei, ca tehnicianul să nu configureze nimic manual.
+
 ## Conectare de la tehnician
-1. Instalați clientul RustDesk pe PC-ul tehnicianului și, în **Settings → Network**, puneți aceeași gazdă și cheie (`$RD_HOST`, `$RD_KEY`).
-2. Introduceți ID-ul laptopului și parola lui. Vă conectați fără ca cineva să fie la laptop.
+1. Rulați `Configure-TechnicianClient.ps1` (o dată).
+2. Luați ID-ul și parola laptopului din **colectorul intern** (`../collector`).
+3. Deschideți RustDesk, introduceți ID-ul și parola. Vă conectați fără ca cineva să fie la laptop.
 
 ## Securitate (obligatoriu de respectat)
 - Parole **per-laptop** (`random`), nu una comună.
