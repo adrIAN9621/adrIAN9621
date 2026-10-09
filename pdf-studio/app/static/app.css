@@ -198,13 +198,13 @@ input.num { width: 4.5rem; padding: .25rem .4rem; }
 /* ---------- page stage ---------- */
 .page-stage {
   background: var(--stage-bg); border-radius: var(--radius); padding: 1rem; overflow: auto;
-  display: flex; justify-content: center; align-items: flex-start; min-height: 300px; max-height: 80vh;
+  text-align: center; min-height: 300px; max-height: 80vh;
 }
-.small-stage { max-height: 70vh; }
-.page-wrap { position: relative; display: inline-block; box-shadow: 0 2px 10px rgba(0,0,0,.25); background: #fff; line-height: 0; }
+.small-stage { max-height: none; }
+.page-wrap { position: relative; display: inline-block; vertical-align: top; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,.25); background: #fff; line-height: 0; }
 .page-wrap img { display: block; max-width: none; user-select: none; -webkit-user-drag: none; }
 .small-stage .page-wrap img { max-width: 100%; }
-.small-stage .page-wrap { max-width: 640px; width: 100%; }
+.small-stage .page-wrap { max-width: 520px; width: 100%; }
 .small-stage .page-wrap img { width: 100%; }
 .page-overlay { position: absolute; inset: 0; cursor: crosshair; touch-action: none; }
 .page-overlay.tool-none { cursor: default; }

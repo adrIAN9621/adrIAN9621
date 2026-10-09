@@ -720,7 +720,7 @@
 
   // =================================================================== 4. EDITARE
   const ed = {
-    blob: null, name: "", info: null, page: 0, zoom: 1.5, tool: null, ops: [], view: null,
+    blob: null, name: "", info: null, page: 0, zoom: "fit", tool: null, ops: [], view: null,
     opt: {
       text: "", size: 12, color: "#000000",
       rectColor: "#e11d48", fill: false, fillColor: "#fde68a", width: 1.5,
@@ -959,6 +959,13 @@
     }
   }
 
+  function editorZoom() {
+    if (ed.zoom !== "fit") return Number(ed.zoom);
+    const [W] = pageSize(ed.page);
+    const avail = Math.max(200, $("#ed-stage").clientWidth - 40);
+    return Math.round(Math.min(3, Math.max(0.5, avail / W)) * 20) / 20;
+  }
+
   async function goPage(p) {
     if (!ed.info) return;
     ed.page = Math.max(0, Math.min(ed.info.pages - 1, p));
@@ -969,7 +976,7 @@
     renderMarks();
     if (TOOLS.find((t) => t.id === ed.tool && t.kind === "form")) renderToolOptions();
     try {
-      await ed.view.load(ed.blob, ed.page, ed.zoom);
+      await ed.view.load(ed.blob, ed.page, editorZoom());
     } catch (e) { toast(e.message, "err"); }
   }
 
@@ -1069,7 +1076,7 @@
     $("#ed-prev").addEventListener("click", () => goPage(ed.page - 1));
     $("#ed-next").addEventListener("click", () => goPage(ed.page + 1));
     $("#ed-pagenum").addEventListener("change", (e) => goPage(Number(e.target.value) - 1));
-    $("#ed-zoom").addEventListener("change", (e) => { ed.zoom = Number(e.target.value); goPage(ed.page); });
+    $("#ed-zoom").addEventListener("change", (e) => { ed.zoom = e.target.value === "fit" ? "fit" : Number(e.target.value); goPage(ed.page); });
     $("#ed-clear-ops").addEventListener("click", () => { ed.ops = []; renderOps(); renderMarks(); });
     $("#ed-apply").addEventListener("click", (e) => busy(e.currentTarget, () => applyEdits(false)));
     $("#ed-apply-dl").addEventListener("click", (e) => busy(e.currentTarget, () => applyEdits(true)));
@@ -1169,6 +1176,10 @@
   const SIGNER_STATUS = {
     pending: ["În așteptare", ""], sent: ["Trimis spre semnare", "info"],
     signed: ["Semnat", "ok"], rejected: ["Respins", "err"],
+  };
+  const EVENT_KIND = {
+    created: "creat", sent: "trimis", signed: "semnat", warning: "avertisment", error: "eroare",
+    rejected: "respins", completed: "finalizat", cancelled: "anulat", reminder: "reamintire",
   };
   const statusBadge = (map, s) => { const [t, c] = map[s] || [s || "?", ""]; return h("span", { class: "badge " + c }, t); };
 
@@ -1400,7 +1411,7 @@
     blocks.push(h("div", { class: "card" }, h("h2", null, "Istoric"),
       wf.events && wf.events.length
         ? h("ul", { class: "timeline" }, wf.events.slice().reverse().map((e) => h("li", null,
-          h("div", { class: "when" }, fmtDate(e.ts), e.kind ? " · " + e.kind : ""),
+          h("div", { class: "when" }, fmtDate(e.ts), e.kind ? " · " + (EVENT_KIND[e.kind] || e.kind) : ""),
           h("div", { style: e.kind === "error" || e.kind === "rejected" ? { color: "var(--err)" } : e.kind === "warning" ? { color: "var(--warn)" } : null }, e.message))))
         : h("p", { class: "muted" }, "Niciun eveniment.")));
 
