@@ -10,6 +10,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   pdf-studio:
     runs-on: windows-latest
