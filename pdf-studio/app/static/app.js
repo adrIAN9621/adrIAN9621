@@ -238,7 +238,7 @@
     const marks = h("div");
     const wrap = h("div", { class: "page-wrap" }, img, marks, overlay);
     let mode = "none";
-    let onRect = null, onPoint = null;
+    let onRect = null, onPoint = null, onCancel = null;
     let sel = null;
     let drag = null;
     let token = 0;
@@ -278,7 +278,7 @@
       const p = frac(e);
       const r = [Math.min(drag.x0, p.x), Math.min(drag.y0, p.y), Math.max(drag.x0, p.x), Math.max(drag.y0, p.y)];
       drag = null;
-      if (r[2] - r[0] < 0.005 || r[3] - r[1] < 0.004) { if (!api.keepSel) sel.hidden = true; return; }
+      if (r[2] - r[0] < 0.005 || r[3] - r[1] < 0.004) { sel.hidden = true; if (onCancel) onCancel(); return; }
       if (onRect) onRect(r, sel);
     };
     overlay.addEventListener("pointerup", end);
@@ -303,6 +303,7 @@
         mode = m;
         onRect = handlers.onRect || null;
         onPoint = handlers.onPoint || null;
+        onCancel = handlers.onCancel || null;
         overlay.className = "page-overlay" + (m === "none" ? " tool-none" : "");
         if (sel) sel.hidden = true;
       },
@@ -449,7 +450,10 @@
     // --- semnătură vizibilă
     const visStage = r("vis-stage");
     const view = pageView(visStage);
-    view.setMode("rect", { onRect: (rect) => { visRect = rect; view.showSel(rect, "sig-rect"); } });
+    view.setMode("rect", {
+      onRect: (rect) => { visRect = rect; view.showSel(rect, "sig-rect"); },
+      onCancel: () => view.showSel(visRect, "sig-rect"),
+    });
 
     async function showVisible() {
       const pdf = await getPdf();
