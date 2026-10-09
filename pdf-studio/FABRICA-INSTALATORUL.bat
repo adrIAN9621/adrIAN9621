@@ -30,7 +30,7 @@ for %%P in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Set
 if "%ISCC%"=="" (
   echo [2/4] Instalez Inno Setup...
   winget install -e --id JRSoftware.InnoSetup --accept-source-agreements --accept-package-agreements --silent
-  for %%P in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Setup 6\ISCC.exe") do if exist "%%~P" set "ISCC=%%~P"
+  call :findiscc
 ) else (
   echo [2/4] Inno Setup este deja instalat.
 )
@@ -49,9 +49,15 @@ if not exist "dist\PDF-Studio.exe" (
 
 REM --- 4. Impachetare in instalator ---
 echo [4/4] Creez instalatorul...
-if "%ISCC%"=="" for %%P in ("%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" "%ProgramFiles%\Inno Setup 6\ISCC.exe") do if exist "%%~P" set "ISCC=%%~P"
+if "%ISCC%"=="" call :findiscc
 if "%ISCC%"=="" (
-  echo Nu am gasit Inno Setup. Deschideti din nou acest fisier dupa ce se termina instalarea lui.
+  echo.
+  echo Nu am gasit Inno Setup. Instalati-l o data de aici ^(gratuit, Next-Next^):
+  echo    https://jrsoftware.org/isdl.php
+  echo apoi deschideti DIN NOU acest fisier.
+  echo.
+  echo  Oricum, aplicatia este deja gata si merge: dati dublu-clic pe
+  echo     %cd%\dist\PDF-Studio.exe
   pause & exit /b 1
 )
 "%ISCC%" "installer\pdfstudio.iss"
@@ -66,3 +72,15 @@ echo  si apare scurtatura pe desktop ca la orice program.
 echo =====================================================================
 explorer "%cd%\installer\Output"
 pause
+goto :eof
+
+:findiscc
+REM Cauta ISCC.exe (Inno Setup) in locatiile uzuale si recursiv.
+for %%P in (
+  "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+  "%ProgramFiles%\Inno Setup 6\ISCC.exe"
+  "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+) do if not defined ISCC if exist "%%~P" set "ISCC=%%~P"
+if not defined ISCC for /f "delims=" %%F in ('where /r "%ProgramFiles(x86)%" ISCC.exe 2^>nul') do if not defined ISCC set "ISCC=%%F"
+if not defined ISCC for /f "delims=" %%F in ('where /r "%ProgramFiles%" ISCC.exe 2^>nul') do if not defined ISCC set "ISCC=%%F"
+goto :eof
