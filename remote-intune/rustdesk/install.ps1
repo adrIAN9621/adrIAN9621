@@ -130,8 +130,10 @@ try {
 
     if ($RD_REPORT_URL) {
         try {
+            $headers = @{}
+            if ($RD_REPORT_TOKEN) { $headers["Authorization"] = "Bearer $RD_REPORT_TOKEN" }
             Invoke-RestMethod -Uri $RD_REPORT_URL -Method Post -ContentType "application/json" `
-                -Body ($info | ConvertTo-Json) -TimeoutSec 20 | Out-Null
+                -Headers $headers -Body ($info | ConvertTo-Json) -TimeoutSec 20 | Out-Null
             Log "Raportat către $RD_REPORT_URL."
         } catch {
             Log ("Raportarea a eșuat (nu e critic): {0}" -f $_.Exception.Message)

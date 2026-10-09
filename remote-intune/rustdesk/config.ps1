@@ -27,8 +27,10 @@ $RD_RANDOM_LEN = 16
 
 # Unde se raportează ID-ul + parola fiecărui laptop (opțional).
 # Dacă e gol, informațiile rămân doar local în device-info.txt.
-# Poate fi un endpoint intern care acceptă POST JSON {id,password,hostname,user}.
+# Poate fi colectorul intern (../collector), care acceptă POST JSON.
 $RD_REPORT_URL = ""
+# Tokenul colectorului (același cu $COLLECTOR_TOKEN / ingest_token). Gol = fără antet de autorizare.
+$RD_REPORT_TOKEN = ""
 
 # --- Comportament ---
 # approve-mode: "password" = IT se conectează doar cu parola, fără ca cineva să
