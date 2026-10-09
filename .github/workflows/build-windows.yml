@@ -1,0 +1,64 @@
+name: Construire aplicații Windows
+
+# Construiește .exe-urile pe Windows, în cloud-ul GitHub.
+# Pornire manuală: tab-ul Actions -> "Construire aplicații Windows" -> Run workflow.
+# Alegeți ramura claude/pdf-studio la pornire.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  pdf-studio:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalează dependențele
+        working-directory: pdf-studio
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Construiește .exe
+        working-directory: pdf-studio
+        run: pyinstaller --noconfirm --clean pdfstudio.spec
+
+      - name: Verificare rapidă (pornește și răspunde)
+        working-directory: pdf-studio
+        shell: pwsh
+        run: |
+          $env:PDFSTUDIO_NO_BROWSER = "1"
+          $env:PDFSTUDIO_PORT = "8765"
+          $p = Start-Process -FilePath "dist\PDF-Studio.exe" -PassThru
+          Start-Sleep -Seconds 25
+          try {
+            $r = Invoke-WebRequest "http://127.0.0.1:8765/" -UseBasicParsing -TimeoutSec 15
+            if ($r.StatusCode -ne 200) { throw "Răspuns neașteptat: $($r.StatusCode)" }
+            Write-Host "OK - aplicația a pornit și a răspuns 200."
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Încarcă executabilul
+        uses: actions/upload-artifact@v4
+        with:
+          name: PDF-Studio-Windows
+          path: pdf-studio/dist/PDF-Studio.exe
+
+      - name: Publică Release descărcabil
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-latest' }}
+          name: Aplicații Windows (ultima versiune)
+          body: "PDF Studio pentru Windows. Descărcați PDF-Studio.exe de mai jos și dați dublu-clic."
+          files: pdf-studio/dist/PDF-Studio.exe
