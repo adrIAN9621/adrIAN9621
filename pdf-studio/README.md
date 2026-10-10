@@ -84,4 +84,4 @@ Pentru un instalator normal (`PDF-Studio-Setup.exe`) care instalează aplicația
 Acel fișier e instalatorul: îl copiezi pe orice laptop, dublu-clic, Next-Next, și apare scurtătura pe desktop ca la orice program.
 
 ## Aplicație de sine stătătoare (fereastră proprie, nu browser)
-Începând cu această versiune, `PDF-Studio.exe` se deschide în **fereastra lui**, ca orice program (folosește motorul Edge WebView2, prezent în Windows 10/11). Nu mai apare în browser. Dacă pe un PC lipsește WebView2 Runtime (rar), aplicația revine automat la deschiderea în browser.
+Începând cu această versiune, `PDF-Studio.exe` se deschide în **fereastra lui**, ca orice program (se deschide în fereastra ei proprie, fără bară de adrese (modul „aplicație” al Microsoft Edge/Chrome, prezent pe orice Windows 10/11). Nu mai apare ca pagină de browser. Dacă din întâmplare nu găsește Edge/Chrome, revine la browserul implicit. Un jurnal de pornire se scrie în %LOCALAPPDATA%\PDF-Studio\startup.log.
