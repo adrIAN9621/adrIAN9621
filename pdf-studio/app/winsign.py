@@ -533,6 +533,13 @@ class WindowsStoreSigner(Signer):
             p_pad = None
             flags = 0
 
+        # NU setăm NCRYPT_SILENT_FLAG: furnizorul (token local AlfaSign SAU cont
+        # la distanță STS/AlfaSign cloud) are voie să-și afișeze dialogul.
+        # Apelul poate bloca mult timp cât utilizatorul interacționează cu
+        # dialogul furnizorului (parolă + OTP Authenticator + PIN) – NU impunem
+        # niciun timeout; îl lăsăm să ruleze.
+        # needs testing on Windows with the real token.
+        #
         # prima trecere: dimensiunea semnăturii
         status = ncrypt.NCryptSignHash(
             h_key, p_pad, buf, len(hashed), None, 0, ctypes.byref(out_len), flags
