@@ -391,3 +391,18 @@ h1 { font-size: 1.85rem; font-weight: 700; color: var(--ink); }
 .topbar { background: var(--side-bg) !important; color: var(--side-text); border-bottom: 3px solid var(--accent) !important; }
 .topbar .icon-btn { color: var(--side-text); }
 .topbar .brand { font-size: 1rem; }
+
+/* ---- semnare simplificată ---- */
+.linklike {
+  background: none; border: 0; color: var(--primary); cursor: pointer;
+  font: inherit; padding: .4rem .2rem; text-decoration: underline;
+}
+.linklike:hover { color: var(--primary-hover); }
+details.adv { margin-top: .9rem; border-top: 1px solid var(--border); padding-top: .6rem; }
+details.adv > summary {
+  cursor: pointer; color: var(--muted); font-size: .9rem; font-weight: 500;
+  list-style: revert; padding: .2rem 0;
+}
+details.adv > summary:hover { color: var(--text); }
+details.adv[open] > summary { margin-bottom: .6rem; }
+.actions.left { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }

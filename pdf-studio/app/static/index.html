@@ -275,19 +275,21 @@
 <!-- ============ șablon formular semnare (reutilizabil) ============ -->
 <template id="tpl-sign-form">
   <div class="sign-form">
-    <div class="tabs" data-role="method-tabs">
-      <button type="button" class="tab active" data-method="winstore">Certificat Windows (ca în Adobe)</button>
-      <button type="button" class="tab" data-method="pkcs11">Token USB (PKCS#11)</button>
-      <button type="button" class="tab" data-method="pkcs12">Fișier certificat (.pfx/.p12)</button>
-      <button type="button" class="tab" data-method="csc">Cont cloud (CSC)</button>
+    <div class="method-pane" data-method="winstore">
+      <label class="field">Alege certificatul
+        <select data-role="win-cert"><option value="">— se încarcă… —</option></select>
+      </label>
+      <div class="actions left">
+        <button type="button" class="btn small" data-role="win-load">Reîmprospătează lista</button>
+        <button type="button" class="linklike" data-role="toggle-methods">Alte metode (token, fișier, cloud)</button>
+      </div>
     </div>
 
-    <div class="method-pane" data-method="winstore">
-      <div class="note">Semnează cu un ID digital din magazinul de certificate Windows, exact ca în Adobe Acrobat. Funcționează atât pentru stick-ul AlfaSign (apare după instalarea driverului), cât și pentru conturile de semnare la distanță precum STS sau AlfaSign cloud. La semnare, furnizorul vă cere datele în fereastra lui proprie (e-mail / parolă / cod din Google Authenticator / PIN). Poate dura câteva momente.</div>
-      <div class="actions left"><button type="button" class="btn" data-role="win-load">Încarcă certificatele din Windows</button></div>
-      <label class="field">Certificat
-        <select data-role="win-cert"><option value="">— apăsați „Încarcă certificatele din Windows” —</option></select>
-      </label>
+    <div class="tabs" data-role="method-tabs" hidden>
+      <button type="button" class="tab active" data-method="winstore">Certificat Windows</button>
+      <button type="button" class="tab" data-method="pkcs11">Token USB (PKCS#11)</button>
+      <button type="button" class="tab" data-method="pkcs12">Fișier (.pfx/.p12)</button>
+      <button type="button" class="tab" data-method="csc">Cont cloud (CSC)</button>
     </div>
 
     <div class="method-pane" data-method="pkcs11" hidden>
@@ -324,23 +326,25 @@
       </div>
     </div>
 
-    <hr>
-    <div class="row2">
-      <label class="field">Motiv<input type="text" data-role="reason" placeholder="ex. Aprob documentul"></label>
-      <label class="field">Locație<input type="text" data-role="location" placeholder="ex. București"></label>
-    </div>
-    <div class="row2">
-      <label class="field" data-role="contact-wrap">Contact<input type="text" data-role="contact" placeholder="telefon sau e-mail"></label>
-      <label class="field">Server marcă temporală (opțional)<input type="url" data-role="tsa" placeholder="http://timestamp.digicert.com"></label>
-    </div>
-    <label class="check"><input type="checkbox" data-role="visible"> Semnătură vizibilă</label>
-    <div class="visible-pane" data-role="visible-pane" hidden>
-      <div class="pager">
-        <label>Pagina <select data-role="vis-page"></select></label>
-        <span class="hint">Trageți un dreptunghi pe pagină pentru a poziționa semnătura.</span>
+    <details class="adv">
+      <summary>Opțiuni (motiv, locație, semnătură vizibilă)</summary>
+      <div class="row2">
+        <label class="field">Motiv<input type="text" data-role="reason" placeholder="ex. Aprob documentul"></label>
+        <label class="field">Locație<input type="text" data-role="location" placeholder="ex. București"></label>
       </div>
-      <div class="page-stage small-stage" data-role="vis-stage"></div>
-    </div>
+      <div class="row2">
+        <label class="field" data-role="contact-wrap">Contact<input type="text" data-role="contact" placeholder="telefon sau e-mail"></label>
+        <label class="field">Server marcă temporală (opțional)<input type="url" data-role="tsa" placeholder="http://timestamp.digicert.com"></label>
+      </div>
+      <label class="check"><input type="checkbox" data-role="visible"> Semnătură vizibilă</label>
+      <div class="visible-pane" data-role="visible-pane" hidden>
+        <div class="pager">
+          <label>Pagina <select data-role="vis-page"></select></label>
+          <span class="hint">Trageți un dreptunghi pe pagină pentru a poziționa semnătura.</span>
+        </div>
+        <div class="page-stage small-stage" data-role="vis-stage"></div>
+      </div>
+    </details>
   </div>
 </template>
 
