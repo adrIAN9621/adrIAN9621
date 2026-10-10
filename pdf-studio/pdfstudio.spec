@@ -8,12 +8,12 @@ binaries = []
 hiddenimports = ["uvicorn", "uvicorn.logging", "uvicorn.loops.auto",
                  "uvicorn.protocols.http.auto", "uvicorn.protocols.websockets.auto",
                  "uvicorn.lifespan.on", "app", "app.main", "app.signing",
-                 "app.convert", "app.editor", "app.workflow"]
+                 "app.convert", "app.editor", "app.workflow", "app.winsign"]
 
 # Pachetele „grele” se adună complet, ca să nu lipsească module la rulare.
 for pkg in ("fitz", "pymupdf", "pyhanko", "pyhanko_certvalidator", "asn1crypto",
             "oscrypto", "certvalidator", "pdf2docx", "docx", "cryptography", "PIL",
-            "webview", "clr_loader", "pythonnet"):
+            ):
     try:
         d, b, h = collect_all(pkg)
         datas += d; binaries += b; hiddenimports += h
