@@ -38,7 +38,17 @@ def scan(store_name):
             hk = f"ERR {e!r}"
         if hk is True:
             withkey += 1
+        # încercăm exact ce face aplicația: extragerea metadatelor
+        try:
+            der2 = winsign._der_from_context(ctypes, ctx)
+            cert2 = X.Certificate.load(der2)
+            cert2.native
+            meta = winsign._cert_meta(cert2, der2)
+            metainfo = f"OK meta: {meta.get('subject')} / {meta.get('issuer')}"
+        except Exception as e:
+            metainfo = f"META ERR: {e!r}"
         print(f"  {total:2d}. are_cheie={hk!s:5}  '{cn}'  <-- {iss}")
+        print(f"       {metainfo}")
         ctx = crypt32.CertEnumCertificatesInStore(store, ctx)
     crypt32.CertCloseStore(store, 0)
     print(f"  TOTAL={total}  CU_CHEIE={withkey}")
