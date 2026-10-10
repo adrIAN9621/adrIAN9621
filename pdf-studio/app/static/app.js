@@ -380,34 +380,41 @@
 
     if (!showContact) r("contact-wrap").hidden = true;
 
-    // --- tab-uri metodă
+    // --- tab-uri metodă (ascunse implicit; dezvăluite prin „Alte metode”)
     $$(".tab", r("method-tabs")).forEach((t) => t.addEventListener("click", () => {
       method = t.dataset.method;
       $$(".tab", root).forEach((x) => x.classList.toggle("active", x === t));
       $$(".method-pane", root).forEach((p) => { p.hidden = p.dataset.method !== method; });
-      try { localStorage.setItem("pdfstudio.signMethod", method); } catch (_) { /* ignorăm */ }
     }));
-    try {
-      const saved = localStorage.getItem("pdfstudio.signMethod");
-      const tab = saved && $(`.tab[data-method="${saved}"]`, root);
-      if (tab) tab.click();
-    } catch (_) { /* ignorăm */ }
+    const toggleBtn = r("toggle-methods");
+    if (toggleBtn) toggleBtn.addEventListener("click", () => {
+      const tabs = r("method-tabs");
+      tabs.hidden = !tabs.hidden;
+    });
 
     // --- Certificat Windows (magazinul „MY”, ca în Adobe)
-    r("win-load").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      winCerts = await api("/api/sign/windows-certs");
+    async function loadWinCerts(silent) {
       const sel = r("win-cert");
-      if (!winCerts.length) {
-        sel.replaceChildren(h("option", { value: "" }, "— niciun certificat (disponibil doar pe Windows) —"));
-        toast("Nu s-a găsit niciun certificat în magazinul Windows. Pe alt sistem decât Windows această metodă nu funcționează.", "warn");
+      try {
+        winCerts = await api("/api/sign/windows-certs");
+      } catch (_) {
+        if (!silent) toast("Nu s-au putut citi certificatele din Windows.", "warn");
         return;
       }
+      if (!winCerts.length) {
+        sel.replaceChildren(h("option", { value: "" }, "— niciun certificat găsit —"));
+        if (!silent) toast("Nu s-a găsit niciun certificat în Windows (doar pe Windows, cu driverul instalat).", "warn");
+        return;
+      }
+      const cur = sel.value;
       sel.replaceChildren();
       winCerts.forEach((c) => sel.append(h("option", { value: c.thumbprint },
-        `${c.subject}${c.email ? " <" + c.email + ">" : ""} – emis de ${c.issuer || "?"}, valabil până la ${fmtDate(c.not_after)}`)));
-      sel.value = winCerts[0].thumbprint;
-      toast(`${winCerts.length} certificat(e) încărcat(e) din Windows.`, "ok");
-    }));
+        `${c.subject}${c.issuer ? " — " + c.issuer : ""}`)));
+      sel.value = (cur && winCerts.some((c) => c.thumbprint === cur)) ? cur : winCerts[0].thumbprint;
+      if (!silent) toast(`${winCerts.length} certificat(e) găsite.`, "ok");
+    }
+    r("win-load").addEventListener("click", (e) => busy(e.currentTarget, () => loadWinCerts(false)));
+    loadWinCerts(true);  // completează lista automat la deschidere
 
     // --- PKCS#11
     const libSel = r("lib-select");
