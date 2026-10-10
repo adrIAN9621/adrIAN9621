@@ -66,19 +66,50 @@ def _serve(port: int) -> None:
 
 
 def _find_browser() -> str | None:
+    """Găsește un browser Chromium pentru modul „aplicație" (fereastră proprie)."""
+    import shutil
+
     pf = os.environ.get("ProgramFiles", r"C:\Program Files")
     pfx = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
     local = os.environ.get("LOCALAPPDATA", "")
-    candidates = [
-        rf"{pfx}\Microsoft\Edge\Application\msedge.exe",
-        rf"{pf}\Microsoft\Edge\Application\msedge.exe",
-        rf"{pf}\Google\Chrome\Application\chrome.exe",
-        rf"{pfx}\Google\Chrome\Application\chrome.exe",
-        rf"{local}\Google\Chrome\Application\chrome.exe",
+    rels = [
+        r"Microsoft\Edge\Application\msedge.exe",
+        r"Google\Chrome\Application\chrome.exe",
+        r"BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"Vivaldi\Application\vivaldi.exe",
     ]
-    for c in candidates:
-        if c and os.path.exists(c):
-            return c
+    for base in (pf, pfx, local):
+        for rel in rels:
+            if base:
+                p = os.path.join(base, rel)
+                if os.path.exists(p):
+                    return p
+
+    # pe PATH
+    for exe in ("msedge", "chrome", "brave", "vivaldi"):
+        found = shutil.which(exe)
+        if found:
+            return found
+
+    # din registru (App Paths), unde pune Windows căile programelor instalate
+    try:
+        import winreg
+
+        for exe in ("msedge.exe", "chrome.exe", "brave.exe"):
+            for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+                try:
+                    key = winreg.OpenKey(
+                        root,
+                        rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}",
+                    )
+                    val, _ = winreg.QueryValueEx(key, None)
+                    winreg.CloseKey(key)
+                    if val and os.path.exists(val):
+                        return val
+                except OSError:
+                    continue
+    except Exception:
+        pass
     return None
 
 
