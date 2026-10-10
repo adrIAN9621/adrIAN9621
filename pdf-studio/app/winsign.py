@@ -134,6 +134,58 @@ def _cert_context_class(ctypes):
     return CERT_CONTEXT, CRYPT_INTEGER_BLOB
 
 
+def _setup_prototypes(ctypes, crypt32, advapi32, ncrypt, CERT_CONTEXT):
+    """Declară tipurile funcțiilor Win32.
+
+    OBLIGATORIU pe Windows 64-bit: fără ``restype``/``argtypes`` ctypes tratează
+    valorile returnate ca ``c_int`` (32 de biți) și trunchiază handle-urile
+    (HCERTSTORE, PCCERT_CONTEXT), provocând „access violation".
+    """
+    from ctypes import wintypes
+
+    cvp = ctypes.c_void_p
+    DWORD = wintypes.DWORD
+    BOOL = wintypes.BOOL
+    PCERT = ctypes.POINTER(CERT_CONTEXT)
+    PDWORD = ctypes.POINTER(DWORD)
+    PBYTE = ctypes.POINTER(ctypes.c_byte)
+
+    crypt32.CertOpenSystemStoreW.restype = cvp
+    crypt32.CertOpenSystemStoreW.argtypes = [cvp, wintypes.LPCWSTR]
+    crypt32.CertEnumCertificatesInStore.restype = PCERT
+    crypt32.CertEnumCertificatesInStore.argtypes = [cvp, cvp]
+    crypt32.CertDuplicateCertificateContext.restype = PCERT
+    crypt32.CertDuplicateCertificateContext.argtypes = [cvp]
+    crypt32.CertGetCertificateContextProperty.restype = BOOL
+    crypt32.CertGetCertificateContextProperty.argtypes = [cvp, DWORD, cvp, PDWORD]
+    crypt32.CertCloseStore.restype = BOOL
+    crypt32.CertCloseStore.argtypes = [cvp, DWORD]
+    crypt32.CertFreeCertificateContext.restype = BOOL
+    crypt32.CertFreeCertificateContext.argtypes = [cvp]
+    crypt32.CryptAcquireCertificatePrivateKey.restype = BOOL
+    crypt32.CryptAcquireCertificatePrivateKey.argtypes = [
+        cvp, DWORD, cvp, ctypes.POINTER(cvp), PDWORD, ctypes.POINTER(BOOL)
+    ]
+    if ncrypt is not None:
+        ncrypt.NCryptSignHash.restype = ctypes.c_long
+        ncrypt.NCryptSignHash.argtypes = [
+            cvp, cvp, PBYTE, DWORD, PBYTE, DWORD, PDWORD, DWORD
+        ]
+        ncrypt.NCryptFreeObject.restype = ctypes.c_long
+        ncrypt.NCryptFreeObject.argtypes = [cvp]
+    if advapi32 is not None:
+        advapi32.CryptCreateHash.restype = BOOL
+        advapi32.CryptCreateHash.argtypes = [cvp, DWORD, cvp, DWORD, ctypes.POINTER(cvp)]
+        advapi32.CryptSetHashParam.restype = BOOL
+        advapi32.CryptSetHashParam.argtypes = [cvp, DWORD, cvp, DWORD]
+        advapi32.CryptSignHashW.restype = BOOL
+        advapi32.CryptSignHashW.argtypes = [cvp, DWORD, wintypes.LPCWSTR, DWORD, cvp, PDWORD]
+        advapi32.CryptDestroyHash.restype = BOOL
+        advapi32.CryptDestroyHash.argtypes = [cvp]
+        advapi32.CryptReleaseContext.restype = BOOL
+        advapi32.CryptReleaseContext.argtypes = [cvp, DWORD]
+
+
 def _der_from_context(ctypes, ctx_ptr) -> bytes:
     ctx = ctx_ptr.contents
     return bytes(bytearray(ctx.pbCertEncoded[: ctx.cbCertEncoded]))
@@ -254,8 +306,7 @@ def list_windows_certs() -> list[dict]:
     _require_windows()
     ctypes, crypt32, _advapi32, _ncrypt = _win_libs()
     CERT_CONTEXT, _ = _cert_context_class(ctypes)
-    crypt32.CertEnumCertificatesInStore.restype = ctypes.POINTER(CERT_CONTEXT)
-    crypt32.CertEnumCertificatesInStore.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    _setup_prototypes(ctypes, crypt32, _advapi32, _ncrypt, CERT_CONTEXT)
 
     store = crypt32.CertOpenSystemStoreW(None, "MY")
     if not store:
@@ -323,10 +374,8 @@ class WindowsStoreSigner(Signer):
         """
         ctypes, crypt32, _advapi32, _ncrypt = self._libs = _win_libs()
         CERT_CONTEXT, _ = _cert_context_class(ctypes)
-        crypt32.CertEnumCertificatesInStore.restype = ctypes.POINTER(CERT_CONTEXT)
-        crypt32.CertEnumCertificatesInStore.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-        crypt32.CertDuplicateCertificateContext.restype = ctypes.POINTER(CERT_CONTEXT)
-        crypt32.CertDuplicateCertificateContext.argtypes = [ctypes.c_void_p]
+        self._CERT_CONTEXT = CERT_CONTEXT
+        _setup_prototypes(ctypes, crypt32, _advapi32, _ncrypt, CERT_CONTEXT)
 
         store = crypt32.CertOpenSystemStoreW(None, "MY")
         if not store:
@@ -466,16 +515,13 @@ class WindowsStoreSigner(Signer):
         from ctypes import wintypes
 
         ctypes_mod, crypt32, _advapi32, ncrypt = getattr(self, "_libs", None) or _win_libs()
+        CERT_CONTEXT = getattr(self, "_CERT_CONTEXT", None) or _cert_context_class(ctypes)[0]
+        _setup_prototypes(ctypes, crypt32, _advapi32, ncrypt, CERT_CONTEXT)
 
         h_key = ctypes.c_void_p(0)
         key_spec = wintypes.DWORD(0)
         caller_free = wintypes.BOOL(0)
 
-        crypt32.CryptAcquireCertificatePrivateKey.argtypes = [
-            ctypes.c_void_p, wintypes.DWORD, ctypes.c_void_p,
-            ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.DWORD),
-            ctypes.POINTER(wintypes.BOOL),
-        ]
         # IMPORTANT: NU folosim CRYPT_ACQUIRE_SILENT_FLAG. Pentru conturile de
         # semnare la distanță (STS, AlfaSign cloud etc.) KSP/CSP-ul furnizorului
         # trebuie să poată afișa propriul dialog interactiv (e-mail + parolă +
@@ -527,7 +573,8 @@ class WindowsStoreSigner(Signer):
                 _fields_ = [("pszAlgId", wintypes.LPCWSTR)]
 
             pad = BCRYPT_PKCS1_PADDING_INFO(alg_id)
-            p_pad = ctypes.byref(pad)
+            self._pad_keepalive = pad  # să nu fie colectat de GC în timpul apelului
+            p_pad = ctypes.cast(ctypes.pointer(pad), ctypes.c_void_p)
             flags = _NCRYPT_PAD_PKCS1_FLAG
         else:
             p_pad = None
