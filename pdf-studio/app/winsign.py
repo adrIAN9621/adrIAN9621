@@ -188,7 +188,9 @@ def _setup_prototypes(ctypes, crypt32, advapi32, ncrypt, CERT_CONTEXT):
 
 def _der_from_context(ctypes, ctx_ptr) -> bytes:
     ctx = ctx_ptr.contents
-    return bytes(bytearray(ctx.pbCertEncoded[: ctx.cbCertEncoded]))
+    # string_at citește corect octeții nesemnați (0..255); indexarea c_byte dă
+    # valori cu semn și strică parsarea ("byte must be in range(0, 256)").
+    return ctypes.string_at(ctx.pbCertEncoded, ctx.cbCertEncoded)
 
 
 def _context_has_key(crypt32, ctx_ptr) -> bool:
@@ -600,7 +602,7 @@ class WindowsStoreSigner(Signer):
         )
         if status != 0:
             self._raise_pin_error(status & 0xFFFFFFFF)
-        raw = bytes(bytearray(sig[: out_len.value]))
+        raw = ctypes.string_at(sig, out_len.value)
 
         if is_rsa:
             return raw
@@ -634,7 +636,7 @@ class WindowsStoreSigner(Signer):
                 h_hash, key_spec, None, 0, sig, ctypes.byref(cb)
             ):
                 self._raise_pin_error(ctypes.get_last_error())
-            raw = bytes(bytearray(sig[: cb.value]))
+            raw = ctypes.string_at(sig, cb.value)
             # CAPI întoarce semnătura în little-endian -> o inversăm (RSA)
             return raw[::-1]
         finally:
