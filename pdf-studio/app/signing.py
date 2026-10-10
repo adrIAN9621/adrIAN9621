@@ -1,6 +1,9 @@
 """Semnare și validare PDF (PAdES) – pyHanko.
 
 Metode de semnare:
+  * ``winstore`` – certificat din magazinul Windows „MY” (ca ID-ul digital din
+    Adobe Acrobat; token-uri AlfaSign etc. al căror driver înregistrează
+    certificatul în Windows). Doar pe Windows.
   * ``pkcs12`` – fișier .pfx/.p12 (certificat + cheie privată)
   * ``pkcs11`` – token USB / smart card (SafeNet, Bit4id, IDPrime, OpenSC ...)
   * ``csc``    – semnătură în cloud (Cloud Signature Consortium API v1/v2)
@@ -42,11 +45,14 @@ from pyhanko_certvalidator import ValidationContext
 
 log = logging.getLogger(__name__)
 
+from . import winsign
+
 __all__ = [
     "DEFAULT_PKCS11_LIBS",
     "detect_pkcs11_libs",
     "list_pkcs11_tokens",
     "list_token_certs",
+    "list_windows_certs",
     "sign_pdf",
     "validate_pdf",
     "make_test_pfx",
@@ -401,6 +407,13 @@ def list_token_certs(lib_path: str, token_label: str, pin: str) -> list[dict]:
     return [{k: v for k, v in c.items() if not k.startswith("_")} for c in certs]
 
 
+def list_windows_certs() -> list[dict]:
+    """Certificatele din magazinul Windows „MY” (gol dacă nu suntem pe Windows)."""
+    if not winsign.available():
+        return []
+    return winsign.list_windows_certs()
+
+
 def _is_signing_cert(cert: asn1_x509.Certificate) -> bool:
     try:
         if cert.ca:
@@ -645,7 +658,7 @@ def sign_pdf(
     """Semnează PAdES (B-B / B-T) incremental și întoarce PDF-ul semnat."""
     params = params or {}
     method = (method or "").lower().strip()
-    if method not in ("pkcs12", "pkcs11", "csc"):
+    if method not in ("pkcs12", "pkcs11", "csc", "winstore"):
         raise ValueError(f"Metodă de semnare necunoscută: {method}")
     return _run_async(
         _async_sign_pdf(
@@ -681,6 +694,16 @@ async def _async_sign_pdf(
 
     if method == "pkcs12":
         signer = _pkcs12_signer(params)
+        return await _do_sign(
+            writer, signer, field_name, existing, reason, location, contact, visible, timestamp_url
+        )
+
+    if method == "winstore":
+        if not winsign.available():
+            raise ValueError(
+                "Semnarea cu certificat Windows este disponibilă doar pe Windows."
+            )
+        signer = winsign.WindowsStoreSigner(params.get("thumbprint") or "")
         return await _do_sign(
             writer, signer, field_name, existing, reason, location, contact, visible, timestamp_url
         )

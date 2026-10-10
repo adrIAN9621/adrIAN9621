@@ -370,8 +370,9 @@
     const root = $("#tpl-sign-form").content.firstElementChild.cloneNode(true);
     host.append(root);
     const r = (role) => $(`[data-role="${role}"]`, root);
-    let method = "pkcs11";
+    let method = "winstore";
     let certs = [];
+    let winCerts = [];
     let visInfo = null;
     let visPdf = null;
     let visRect = null; // fracțiuni [x0,y0,x1,y1] stânga-sus
@@ -391,6 +392,22 @@
       const tab = saved && $(`.tab[data-method="${saved}"]`, root);
       if (tab) tab.click();
     } catch (_) { /* ignorăm */ }
+
+    // --- Certificat Windows (magazinul „MY”, ca în Adobe)
+    r("win-load").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      winCerts = await api("/api/sign/windows-certs");
+      const sel = r("win-cert");
+      if (!winCerts.length) {
+        sel.replaceChildren(h("option", { value: "" }, "— niciun certificat (disponibil doar pe Windows) —"));
+        toast("Nu s-a găsit niciun certificat în magazinul Windows. Pe alt sistem decât Windows această metodă nu funcționează.", "warn");
+        return;
+      }
+      sel.replaceChildren();
+      winCerts.forEach((c) => sel.append(h("option", { value: c.thumbprint },
+        `${c.subject}${c.email ? " <" + c.email + ">" : ""} – emis de ${c.issuer || "?"}, valabil până la ${fmtDate(c.not_after)}`)));
+      sel.value = winCerts[0].thumbprint;
+      toast(`${winCerts.length} certificat(e) încărcat(e) din Windows.`, "ok");
+    }));
 
     // --- PKCS#11
     const libSel = r("lib-select");
@@ -503,7 +520,11 @@
       /** Adaugă câmpurile formularului în FormData; aruncă Error dacă lipsesc date. */
       appendTo(f) {
         f.append("method", method);
-        if (method === "pkcs11") {
+        if (method === "winstore") {
+          const tp = r("win-cert").value;
+          if (!tp) throw new Error("Încărcați și selectați un certificat din Windows.");
+          f.append("thumbprint", tp);
+        } else if (method === "pkcs11") {
           const lib = libPath();
           if (!lib) throw new Error("Alegeți biblioteca PKCS#11 a token-ului.");
           if (!r("token-select").value) throw new Error("Căutați și selectați token-ul.");

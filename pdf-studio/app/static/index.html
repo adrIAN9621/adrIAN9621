@@ -276,12 +276,21 @@
 <template id="tpl-sign-form">
   <div class="sign-form">
     <div class="tabs" data-role="method-tabs">
-      <button type="button" class="tab active" data-method="pkcs11">Token USB (PKCS#11)</button>
+      <button type="button" class="tab active" data-method="winstore">Certificat Windows (ca în Adobe)</button>
+      <button type="button" class="tab" data-method="pkcs11">Token USB (PKCS#11)</button>
       <button type="button" class="tab" data-method="pkcs12">Fișier certificat (.pfx/.p12)</button>
       <button type="button" class="tab" data-method="csc">Cont cloud (CSC)</button>
     </div>
 
-    <div class="method-pane" data-method="pkcs11">
+    <div class="method-pane" data-method="winstore">
+      <div class="note">Semnează cu un ID digital din magazinul de certificate Windows, exact ca în Adobe Acrobat. Aici apare și stick-ul AlfaSign după instalarea driverului. PIN-ul vi-l cere Windows la semnare.</div>
+      <div class="actions left"><button type="button" class="btn" data-role="win-load">Încarcă certificatele din Windows</button></div>
+      <label class="field">Certificat
+        <select data-role="win-cert"><option value="">— apăsați „Încarcă certificatele din Windows” —</option></select>
+      </label>
+    </div>
+
+    <div class="method-pane" data-method="pkcs11" hidden>
       <label class="field">Bibliotecă PKCS#11 (driver token)
         <select data-role="lib-select"></select>
       </label>

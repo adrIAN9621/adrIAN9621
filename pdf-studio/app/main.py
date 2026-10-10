@@ -141,7 +141,14 @@ def sign_token_certs(lib_path: str = Form(...), token_label: str = Form(...), pi
     return signing.list_token_certs(lib_path, token_label, pin)
 
 
+@app.get("/api/sign/windows-certs")
+def sign_windows_certs():
+    return signing.list_windows_certs()
+
+
 async def _sign_params(method: str, form) -> dict:
+    if method == "winstore":
+        return {"thumbprint": form.get("thumbprint") or ""}
     if method == "pkcs12":
         pfx = form.get("pfx")
         if pfx is None or not hasattr(pfx, "read"):
