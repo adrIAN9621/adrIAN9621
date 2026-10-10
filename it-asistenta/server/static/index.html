@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carpatica Asistență IT – Consolă</title>
+<link rel="icon" href="/static/brand/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/console.css">
+<script src="/static/console.js" defer></script>
+</head>
+<body>
+
+<!-- ============ Autentificare ============ -->
+<section id="login-view" class="login-view hidden">
+  <form id="login-form" class="login-card" autocomplete="on">
+    <div class="login-brand">
+      <img src="/static/brand/logo.svg" alt="" class="logo-lg">
+      <div>
+        <div class="brand-title">Carpatica Asistență IT</div>
+        <div class="brand-sub">Consolă tehnicieni</div>
+      </div>
+    </div>
+    <label>Utilizator
+      <input id="login-user" name="username" autocomplete="username" required maxlength="64">
+    </label>
+    <label>Parolă
+      <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <div id="login-error" class="form-error" role="alert"></div>
+    <button type="submit" class="btn btn-primary btn-block" id="login-btn">Autentificare</button>
+    <p class="login-note">Acces permis doar personalului IT autorizat. Toate acțiunile sunt înregistrate.</p>
+  </form>
+</section>
+
+<!-- ============ Aplicație ============ -->
+<div id="app-view" class="app-view hidden">
+  <aside class="sidebar">
+    <div class="side-brand">
+      <img src="/static/brand/logo.svg" alt="" class="logo-sm">
+      <div>
+        <div class="brand-title">Asistență IT</div>
+        <div class="brand-sub">Carpatica Feroviar</div>
+      </div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-item active" data-tab="agents"><span class="nav-ico">▣</span>Calculatoare</button>
+      <button class="nav-item" data-tab="audit"><span class="nav-ico">≡</span>Jurnal audit</button>
+    </nav>
+    <div class="side-foot">
+      <div class="side-user"><span class="dot-user"></span><span id="me-name">—</span></div>
+      <button id="logout-btn" class="btn btn-ghost-dark btn-sm">Deconectare</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h1 id="page-title">Calculatoare</h1>
+      <div class="topbar-right"><span class="signal-bar"></span><span id="clock" class="muted-light"></span></div>
+    </header>
+
+    <!-- Tab calculatoare -->
+    <section id="tab-agents" class="tab">
+      <div class="card connect-card">
+        <h2>Conectare la un calculator</h2>
+        <p class="muted">Cereți angajatului <b>ID-ul</b> și <b>codul de acces</b> afișate în aplicația „Asistență IT”. Angajatul va trebui să accepte conexiunea.</p>
+        <form id="connect-form" class="connect-form" autocomplete="off">
+          <label>ID calculator
+            <input id="c-id" inputmode="numeric" placeholder="123 456 789" maxlength="11" required>
+          </label>
+          <label>Cod de acces
+            <input id="c-code" inputmode="numeric" placeholder="000000" maxlength="7" required>
+          </label>
+          <button class="btn btn-accent" type="submit">Conectare</button>
+        </form>
+        <div id="connect-error" class="form-error" role="alert"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Calculatoare înregistrate <span id="agents-count" class="pill"></span></h2>
+          <input id="agent-search" class="search" type="search" placeholder="Caută după ID, nume calculator sau utilizator…">
+        </div>
+        <div class="table-wrap">
+          <table class="tbl" id="agents-table">
+            <thead><tr><th>Stare</th><th>ID</th><th>Calculator</th><th>Utilizator</th><th>Sistem</th><th>Versiune</th><th>Văzut ultima dată</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="agents-empty" class="empty hidden">Niciun calculator găsit.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab audit -->
+    <section id="tab-audit" class="tab hidden">
+      <div class="card">
+        <div class="card-head">
+          <h2>Jurnal de audit</h2>
+          <button id="audit-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl" id="audit-table">
+            <thead><tr><th>Data și ora</th><th>Eveniment</th><th>Tehnician</th><th>ID</th><th>Calculator</th><th>IP</th><th>Detalii</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ Sesiune ============ -->
+<div id="session-view" class="session-view hidden">
+  <div class="sess-toolbar">
+    <div class="sess-title">
+      <img src="/static/brand/logo.svg" alt="" class="logo-xs">
+      <span id="sess-host">—</span>
+      <span id="sess-viewonly" class="badge badge-warn hidden">Doar vizualizare</span>
+    </div>
+    <div class="sess-tools">
+      <label class="tool-label">Monitor <select id="sel-monitor"></select></label>
+      <label class="tool-label">Calitate
+        <select id="sel-quality">
+          <option value="fast">Rapid</option>
+          <option value="balanced" selected>Echilibrat</option>
+          <option value="quality">Calitate</option>
+        </select>
+      </label>
+      <button class="tbtn" id="btn-actual" title="Afișează la mărimea reală">Mărime reală</button>
+      <button class="tbtn" id="btn-refresh" title="Reîmprospătează imaginea">Reîmprospătare</button>
+      <button class="tbtn" id="btn-text" title="Tastează un text pe calculatorul la distanță">Trimite text</button>
+      <button class="tbtn" id="btn-clip" title="Trimite clipboard-ul local">Clipboard</button>
+      <button class="tbtn" id="btn-chat" title="Mesaje">Chat <span id="chat-unread" class="unread hidden">0</span></button>
+      <button class="tbtn" id="btn-fs" title="Ecran complet">Ecran complet</button>
+      <button class="tbtn tbtn-danger" id="btn-end">Încheie sesiunea</button>
+    </div>
+  </div>
+  <div class="sess-body">
+    <div id="screen-wrap" class="screen-wrap">
+      <canvas id="screen" tabindex="0"></canvas>
+      <div id="screen-msg" class="screen-msg">Se așteaptă imaginea…</div>
+    </div>
+    <aside id="chat-panel" class="chat-panel hidden">
+      <div class="chat-head">Mesaje <button class="x" id="chat-close" aria-label="Închide">×</button></div>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" placeholder="Scrieți un mesaj…" maxlength="2000" autocomplete="off">
+        <button class="btn btn-primary btn-sm" type="submit">Trimite</button>
+      </form>
+    </aside>
+  </div>
+  <div class="sess-status">
+    <span id="st-state" class="st-dot">Conectat</span>
+    <span id="st-fps">0 fps</span>
+    <span id="st-kbps">0 KB/s</span>
+    <span id="st-res">—</span>
+    <span class="muted-light st-hint">Clic pe imagine pentru a captura tastatura</span>
+  </div>
+</div>
+
+<!-- ============ Dialoguri ============ -->
+<div id="modal" class="modal-back hidden">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text" class="muted"></p>
+    <textarea id="modal-input" class="hidden" rows="5"></textarea>
+    <div class="modal-actions">
+      <button id="modal-cancel" class="btn btn-secondary">Anulează</button>
+      <button id="modal-ok" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="waiting" class="modal-back hidden">
+  <div class="modal waiting">
+    <div class="spinner"></div>
+    <h3>Se așteaptă acceptul utilizatorului</h3>
+    <p class="muted" id="waiting-text">Angajatul trebuie să confirme conexiunea pe calculatorul său.</p>
+    <div class="modal-actions"><button id="waiting-cancel" class="btn btn-secondary">Anulează</button></div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts"></div>
+</body>
+</html>

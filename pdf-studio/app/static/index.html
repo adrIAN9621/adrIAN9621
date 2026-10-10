@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Studio – Carpatica Feroviar</title>
+<link rel="icon" href="/static/brand/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="progress" class="progress" hidden></div>
+
+<header class="topbar">
+  <button class="icon-btn menu-btn" id="menu-btn" aria-label="Meniu">&#9776;</button>
+  <div class="brand"><span class="logo" aria-hidden="true"></span> Carpatica Feroviar · PDF Studio</div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar" id="sidebar">
+    <div class="brand side-brand"><div class="brand-row"><span class="logo" aria-hidden="true"></span><span class="brand-name">Carpatica Feroviar<small>România SA</small></span></div><div class="brand-sub">PDF Studio · Transport marfă</div></div>
+    <a href="#semnare" data-section="semnare" class="nav-item"><span class="ni">&#9998;</span>Semnare</a>
+    <a href="#validare" data-section="validare" class="nav-item"><span class="ni">&#10003;</span>Validare semnături</a>
+    <a href="#conversie" data-section="conversie" class="nav-item"><span class="ni">&#8644;</span>Conversie</a>
+    <a href="#editare" data-section="editare" class="nav-item"><span class="ni">&#9998;&#xFE0E;</span>Editare PDF</a>
+    <a href="#fluxuri" data-section="fluxuri" class="nav-item"><span class="ni">&#10148;</span>Fluxuri de semnare</a>
+    <a href="#setari" data-section="setari" class="nav-item"><span class="ni">&#9881;</span>Setări</a>
+    <div class="side-foot">Uz intern · totul rulează local, pe calculatorul dvs.</div>
+  </nav>
+
+  <main class="content">
+    <!-- ============================ SEMNARE ============================ -->
+    <section id="sec-semnare" class="section" data-section="semnare">
+      <h1>Semnare document</h1>
+      <p class="lead">Semnați electronic un PDF (PAdES) cu un token USB, un fișier de certificat sau un cont de semnare în cloud.</p>
+      <div class="card">
+        <div id="sign-drop"></div>
+      </div>
+      <div class="card" id="sign-form-host"></div>
+      <div class="actions">
+        <button class="btn primary" id="sign-btn">Semnează</button>
+        <a href="#" class="link small" id="testcert-link">Generează certificat de test</a>
+      </div>
+    </section>
+
+    <!-- ============================ VALIDARE ============================ -->
+    <section id="sec-validare" class="section" data-section="validare" hidden>
+      <h1>Validare semnături</h1>
+      <p class="lead">Verificați integritatea și încrederea semnăturilor dintr-un PDF.</p>
+      <div class="card">
+        <div id="val-drop"></div>
+        <details class="mt">
+          <summary>Certificate rădăcină de încredere suplimentare (opțional)</summary>
+          <p class="hint">De exemplu certificatul CA al furnizorului (.cer, .crt, .pem, .der).</p>
+          <div id="val-roots-drop"></div>
+        </details>
+        <div class="actions"><button class="btn primary" id="val-btn">Validează</button></div>
+      </div>
+      <div id="val-results"></div>
+    </section>
+
+    <!-- ============================ CONVERSIE ============================ -->
+    <section id="sec-conversie" class="section" data-section="conversie" hidden>
+      <h1>Conversie</h1>
+      <p class="lead">Transformați PDF în Word și documente Office în PDF.</p>
+      <div id="conv-warning"></div>
+      <div class="grid2">
+        <div class="card">
+          <h2>PDF &rarr; Word</h2>
+          <div id="conv-p2w-drop"></div>
+          <div class="actions"><button class="btn primary" id="conv-p2w-btn">Convertește în Word</button></div>
+        </div>
+        <div class="card">
+          <h2>Word / Office &rarr; PDF</h2>
+          <div id="conv-w2p-drop"></div>
+          <div class="actions"><button class="btn primary" id="conv-w2p-btn">Convertește în PDF</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ EDITARE ============================ -->
+    <section id="sec-editare" class="section" data-section="editare" hidden>
+      <h1>Editare PDF</h1>
+      <div class="subtabs" id="ed-subtabs">
+        <button class="subtab active" data-sub="editor">Editor</button>
+        <button class="subtab" data-sub="merge">Combinare</button>
+        <button class="subtab" data-sub="split">Împărțire</button>
+        <button class="subtab" data-sub="compress">Comprimare</button>
+        <button class="subtab" data-sub="text">Extrage text</button>
+      </div>
+
+      <div class="subpane" data-sub="editor">
+        <div class="card" id="ed-load-card">
+          <div id="ed-drop"></div>
+        </div>
+        <div id="ed-workspace" hidden>
+          <div id="ed-sigwarn"></div>
+          <div class="ed-head">
+            <div class="ed-file"><strong id="ed-filename"></strong> <span class="muted" id="ed-pages"></span></div>
+            <div class="ed-head-actions">
+              <button class="btn" id="ed-close">Închide</button>
+              <button class="btn" id="ed-apply">Aplică</button>
+              <button class="btn primary" id="ed-apply-dl">Aplică și descarcă</button>
+            </div>
+          </div>
+          <div class="toolbar" id="ed-tools"></div>
+          <div class="tool-options" id="ed-tool-opts"></div>
+          <div class="ed-main">
+            <aside class="thumbs" id="ed-thumbs"></aside>
+            <div class="ed-center">
+              <div class="pager">
+                <button class="btn small" id="ed-prev">&lsaquo; Anterioara</button>
+                <span>Pagina <input type="number" id="ed-pagenum" min="1" value="1" class="num"> / <span id="ed-pagecount"></span></span>
+                <button class="btn small" id="ed-next">Următoarea &rsaquo;</button>
+                <label class="zoomsel">Zoom
+                  <select id="ed-zoom"><option value="fit" selected>Potrivire lățime</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+                </label>
+              </div>
+              <div class="page-stage" id="ed-stage"></div>
+            </div>
+            <aside class="ops-panel">
+              <h3>Operații în așteptare <span class="badge" id="ed-opcount">0</span></h3>
+              <ol id="ed-ops" class="ops-list"></ol>
+              <button class="btn small" id="ed-clear-ops">Golește lista</button>
+              <p class="hint">Operațiile se aplică în ordine. Operațiile pe pagini (ștergere, mutare, inserare) schimbă numerotarea paginilor pentru operațiile ulterioare.</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpane" data-sub="merge" hidden>
+        <div class="card">
+          <h2>Combinare PDF-uri</h2>
+          <p class="hint">Adăugați fișierele și stabiliți ordinea lor.</p>
+          <div id="merge-drop"></div>
+          <ol class="file-list" id="merge-list"></ol>
+          <div class="actions"><button class="btn primary" id="merge-btn">Combină</button></div>
+        </div>
+      </div>
+
+      <div class="subpane" data-sub="split" hidden>
+        <div class="card">
+          <h2>Împărțire PDF</h2>
+          <div id="split-drop"></div>
+          <label class="field">Intervale de pagini
+            <input type="text" id="split-ranges" placeholder="ex. 1-3,4,5-end">
+          </label>
+          <p class="hint">Fiecare interval devine un fișier separat; rezultatul este o arhivă ZIP. „end” = ultima pagină.</p>
+          <div class="actions"><button class="btn primary" id="split-btn">Împarte</button></div>
+        </div>
+      </div>
+
+      <div class="subpane" data-sub="compress" hidden>
+        <div class="card">
+          <h2>Comprimare PDF</h2>
+          <div id="compress-drop"></div>
+          <div class="actions"><button class="btn primary" id="compress-btn">Comprimă</button></div>
+          <div id="compress-result"></div>
+        </div>
+      </div>
+
+      <div class="subpane" data-sub="text" hidden>
+        <div class="card">
+          <h2>Extrage text</h2>
+          <div id="text-drop"></div>
+          <div class="actions">
+            <button class="btn primary" id="text-btn">Extrage</button>
+            <button class="btn" id="text-copy" disabled>Copiază</button>
+            <button class="btn" id="text-save" disabled>Salvează .txt</button>
+          </div>
+          <textarea id="text-out" class="text-out" readonly placeholder="Textul extras va apărea aici."></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ FLUXURI ============================ -->
+    <section id="sec-fluxuri" class="section" data-section="fluxuri" hidden>
+      <div id="wf-list-view">
+        <div class="title-row">
+          <h1>Fluxuri de semnare</h1>
+          <div class="row-actions">
+            <button class="btn" id="wf-refresh">Reîmprospătează</button>
+            <button class="btn" id="wf-inbox">Verifică inbox</button>
+            <button class="btn primary" id="wf-new">Flux nou</button>
+          </div>
+        </div>
+        <p class="lead">Trimiteți un document spre semnare, pe rând, mai multor persoane prin e-mail. Răspunsurile semnate sunt importate automat din inbox sau încărcate manual.</p>
+        <div id="wf-inbox-result"></div>
+        <div class="card" id="wf-create" hidden>
+          <h2>Flux nou</h2>
+          <label class="field">Denumire<input type="text" id="wf-name" placeholder="ex. Contract prestări servicii"></label>
+          <div id="wf-drop"></div>
+          <h3 class="mt">Semnatari (în ordinea semnării)</h3>
+          <ol class="signers-edit" id="wf-signers"></ol>
+          <button class="btn small" id="wf-add-signer">+ Adaugă semnatar</button>
+          <label class="field mt">Mesaj pentru semnatari (opțional)<textarea id="wf-message" rows="3"></textarea></label>
+          <label class="check"><input type="checkbox" id="wf-start" checked> Pornește fluxul acum (trimite e-mail primului semnatar)</label>
+          <div class="actions">
+            <button class="btn" id="wf-create-cancel">Renunță</button>
+            <button class="btn primary" id="wf-create-btn">Creează fluxul</button>
+          </div>
+        </div>
+        <div id="wf-list"></div>
+      </div>
+      <div id="wf-detail-view" hidden></div>
+    </section>
+
+    <!-- ============================ SETARI ============================ -->
+    <section id="sec-setari" class="section" data-section="setari" hidden>
+      <h1>Setări e-mail</h1>
+      <p class="lead">Folosite de fluxurile de semnare pentru a trimite (SMTP) și a primi (IMAP) documente.</p>
+      <div class="card">
+        <label class="field">Presetări furnizor
+          <select id="set-preset">
+            <option value="">— alegeți —</option>
+            <option value="gmail">Gmail</option>
+            <option value="outlook">Outlook / Office 365</option>
+            <option value="yahoo">Yahoo Mail</option>
+          </select>
+        </label>
+        <p class="hint">Pentru Gmail, Outlook și Yahoo cu autentificare în doi pași folosiți o <strong>parolă de aplicație</strong> (App Password) generată din contul dvs., nu parola obișnuită.</p>
+      </div>
+      <form id="settings-form" class="grid2" autocomplete="off">
+        <div class="card">
+          <h2>Trimitere (SMTP)</h2>
+          <label class="field">Server SMTP<input name="smtp_host" type="text" placeholder="smtp.exemplu.ro"></label>
+          <div class="row2">
+            <label class="field">Port<input name="smtp_port" type="number" placeholder="465"></label>
+            <label class="field">Securitate
+              <select name="smtp_tls">
+                <option value="ssl">SSL/TLS</option>
+                <option value="starttls">STARTTLS</option>
+                <option value="none">Fără</option>
+              </select>
+            </label>
+          </div>
+          <label class="field">Utilizator<input name="smtp_user" type="text" autocomplete="off"></label>
+          <label class="field">Parolă<input name="smtp_password" type="password" autocomplete="new-password"></label>
+          <label class="field">Adresă expeditor<input name="from_email" type="email" placeholder="nume@exemplu.ro"></label>
+          <label class="field">Nume expeditor<input name="from_name" type="text"></label>
+          <div class="actions"><button type="button" class="btn" id="test-smtp">Testează SMTP</button></div>
+        </div>
+        <div class="card">
+          <h2>Primire (IMAP)</h2>
+          <label class="field">Server IMAP<input name="imap_host" type="text" placeholder="imap.exemplu.ro"></label>
+          <label class="field">Port<input name="imap_port" type="number" placeholder="993"></label>
+          <label class="field">Utilizator<input name="imap_user" type="text" autocomplete="off"></label>
+          <label class="field">Parolă<input name="imap_password" type="password" autocomplete="new-password"></label>
+          <label class="field">Dosar<input name="imap_folder" type="text" placeholder="INBOX"></label>
+          <label class="check"><input type="checkbox" name="strict_email_match"> Acceptă doar răspunsuri de la adresa semnatarului curent (potrivire strictă e-mail)</label>
+          <div class="actions"><button type="button" class="btn" id="test-imap">Testează IMAP</button></div>
+        </div>
+      </form>
+      <div class="actions"><button class="btn primary" id="settings-save">Salvează setările</button></div>
+    </section>
+  </main>
+</div>
+
+<!-- dialog certificat de test -->
+<dialog id="testcert-dialog" class="dialog">
+  <form method="dialog" id="testcert-form">
+    <h2>Certificat de test</h2>
+    <p class="hint">Generează un certificat auto-semnat (.pfx) pentru încercări. Nu are valoare juridică.</p>
+    <label class="field">Nume<input name="name" required value="Utilizator Test"></label>
+    <label class="field">E-mail<input name="email" type="email" required value="test@exemplu.ro"></label>
+    <label class="field">Parolă<input name="password" type="password" required value="test1234"></label>
+    <div class="actions">
+      <button class="btn" value="cancel" formnovalidate>Renunță</button>
+      <button class="btn primary" value="ok" id="testcert-go">Generează</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<!-- ============ șablon formular semnare (reutilizabil) ============ -->
+<template id="tpl-sign-form">
+  <div class="sign-form">
+    <div class="tabs" data-role="method-tabs">
+      <button type="button" class="tab active" data-method="winstore">Certificat Windows (ca în Adobe)</button>
+      <button type="button" class="tab" data-method="pkcs11">Token USB (PKCS#11)</button>
+      <button type="button" class="tab" data-method="pkcs12">Fișier certificat (.pfx/.p12)</button>
+      <button type="button" class="tab" data-method="csc">Cont cloud (CSC)</button>
+    </div>
+
+    <div class="method-pane" data-method="winstore">
+      <div class="note">Semnează cu un ID digital din magazinul de certificate Windows, exact ca în Adobe Acrobat. Funcționează atât pentru stick-ul AlfaSign (apare după instalarea driverului), cât și pentru conturile de semnare la distanță precum STS sau AlfaSign cloud. La semnare, furnizorul vă cere datele în fereastra lui proprie (e-mail / parolă / cod din Google Authenticator / PIN). Poate dura câteva momente.</div>
+      <div class="actions left"><button type="button" class="btn" data-role="win-load">Încarcă certificatele din Windows</button></div>
+      <label class="field">Certificat
+        <select data-role="win-cert"><option value="">— apăsați „Încarcă certificatele din Windows” —</option></select>
+      </label>
+    </div>
+
+    <div class="method-pane" data-method="pkcs11" hidden>
+      <label class="field">Bibliotecă PKCS#11 (driver token)
+        <select data-role="lib-select"></select>
+      </label>
+      <label class="field">sau cale personalizată
+        <input type="text" data-role="lib-custom" placeholder="ex. C:\Windows\System32\eTPKCS11.dll sau /usr/lib/libeTPkcs11.so">
+      </label>
+      <div class="actions left"><button type="button" class="btn" data-role="find-tokens">Caută token-uri</button></div>
+      <label class="field">Token
+        <select data-role="token-select"><option value="">— căutați token-uri —</option></select>
+      </label>
+      <label class="field">PIN<input type="password" data-role="pin11" autocomplete="off"></label>
+      <div class="actions left"><button type="button" class="btn" data-role="load-certs">Încarcă certificate</button></div>
+      <label class="field">Certificat
+        <select data-role="cert-select"><option value="">— implicit (primul certificat) —</option></select>
+      </label>
+    </div>
+
+    <div class="method-pane" data-method="pkcs12" hidden>
+      <label class="field">Fișier certificat (.pfx / .p12)<input type="file" data-role="pfx" accept=".pfx,.p12,application/x-pkcs12"></label>
+      <label class="field">Parolă certificat<input type="password" data-role="pfx-pass" autocomplete="off"></label>
+    </div>
+
+    <div class="method-pane" data-method="csc" hidden>
+      <div class="note">Furnizorii de semnătură în cloud (de ex. certSIGN Paperless, Trans Sped, DigiSign) vă pun la dispoziție adresa serviciului CSC, token-ul de acces și ID-ul credențialului. Consultați portalul sau documentația furnizorului.</div>
+      <label class="field">Adresă serviciu (service URL)<input type="url" data-role="csc-url" placeholder="https://..../csc/v1"></label>
+      <label class="field">Token de acces (access token)<input type="password" data-role="csc-token" autocomplete="off"></label>
+      <label class="field">ID credențial (credential ID)<input type="text" data-role="csc-cred"></label>
+      <div class="row2">
+        <label class="field">PIN<input type="password" data-role="csc-pin" autocomplete="off"></label>
+        <label class="field">Cod OTP<input type="text" data-role="csc-otp" autocomplete="one-time-code"></label>
+      </div>
+    </div>
+
+    <hr>
+    <div class="row2">
+      <label class="field">Motiv<input type="text" data-role="reason" placeholder="ex. Aprob documentul"></label>
+      <label class="field">Locație<input type="text" data-role="location" placeholder="ex. București"></label>
+    </div>
+    <div class="row2">
+      <label class="field" data-role="contact-wrap">Contact<input type="text" data-role="contact" placeholder="telefon sau e-mail"></label>
+      <label class="field">Server marcă temporală (opțional)<input type="url" data-role="tsa" placeholder="http://timestamp.digicert.com"></label>
+    </div>
+    <label class="check"><input type="checkbox" data-role="visible"> Semnătură vizibilă</label>
+    <div class="visible-pane" data-role="visible-pane" hidden>
+      <div class="pager">
+        <label>Pagina <select data-role="vis-page"></select></label>
+        <span class="hint">Trageți un dreptunghi pe pagină pentru a poziționa semnătura.</span>
+      </div>
+      <div class="page-stage small-stage" data-role="vis-stage"></div>
+    </div>
+  </div>
+</template>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

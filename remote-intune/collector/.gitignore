@@ -1,0 +1,10 @@
+# Artefacte locale – nu se comit
+certs/
+*.db
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+
+# Config cu secrete reale – nu se comite (folosiți config.example.json ca șablon)
+config.json

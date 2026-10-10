@@ -2,7 +2,7 @@ name: Construire aplicații Windows
 
 # Construiește .exe-urile pe Windows, în cloud-ul GitHub.
 # Pornire manuală: tab-ul Actions -> "Construire aplicații Windows" -> Run workflow.
-# Alegeți ramura claude/pdf-studio la pornire.
+# Rezultatele se descarcă din pagina rulării (secțiunea Artifacts) sau, la tag, din Releases.
 
 on:
   workflow_dispatch:
@@ -33,6 +33,13 @@ jobs:
         working-directory: pdf-studio
         run: pyinstaller --noconfirm --clean pdfstudio.spec
 
+      - name: Construiește instalatorul (Inno Setup)
+        working-directory: pdf-studio
+        run: |
+          choco install innosetup --no-progress -y
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" installer\pdfstudio.iss
+        shell: pwsh
+
       - name: Verificare rapidă (pornește și răspunde)
         working-directory: pdf-studio
         shell: pwsh
@@ -49,16 +56,20 @@ jobs:
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           }
 
-      - name: Încarcă executabilul
+      - name: Încarcă rezultatele
         uses: actions/upload-artifact@v4
         with:
           name: PDF-Studio-Windows
-          path: pdf-studio/dist/PDF-Studio.exe
+          path: |
+            pdf-studio/installer/Output/PDF-Studio-Setup.exe
+            pdf-studio/dist/PDF-Studio.exe
 
       - name: Publică Release descărcabil
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-latest' }}
           name: Aplicații Windows (ultima versiune)
-          body: "PDF Studio pentru Windows. Descărcați PDF-Studio.exe de mai jos și dați dublu-clic."
-          files: pdf-studio/dist/PDF-Studio.exe
+          body: "PDF Studio pentru Windows. Descărcați PDF-Studio-Setup.exe (instalator cu scurtătură pe desktop) și dați dublu-clic."
+          files: |
+            pdf-studio/installer/Output/PDF-Studio-Setup.exe
+            pdf-studio/dist/PDF-Studio.exe

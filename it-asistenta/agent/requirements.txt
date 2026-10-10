@@ -1,0 +1,8 @@
+websocket-client>=1.7
+mss>=9.0
+Pillow>=10.0
+pynput>=1.7
+# opțional, accelerează comparația de dale (detectat automat la rulare):
+numpy>=1.24
+# doar pentru împachetare:
+# pyinstaller>=6.0

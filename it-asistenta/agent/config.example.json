@@ -1,0 +1,9 @@
+{
+  "server_url": "wss://it.carpatica.local:8443/ws/agent",
+  "ca_file": null,
+  "verify_tls": true,
+  "allow_insecure": false,
+  "default_quality": 60,
+  "default_scale": 1.0,
+  "default_fps": 10
+}
