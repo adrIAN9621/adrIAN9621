@@ -37,3 +37,6 @@ if errorlevel 1 (
 
 echo Pornesc PDF Studio...
 python desktop.py
+echo.
+echo (Daca fereastra aplicatiei nu a aparut, textul de mai sus arata eroarea.)
+pause
