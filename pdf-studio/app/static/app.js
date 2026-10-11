@@ -366,10 +366,11 @@
    * opts.showContact: afișează câmpul Contact
    * Returnează { appendTo(formData), pdfChanged(), setPfx(file, password) }.
    */
-  function createSignForm(host, { getPdf, showContact = true } = {}) {
+  function createSignForm(host, { getPdf, showContact = true, getVisible = null, onVisibleToggle = null, visibleDefault = false } = {}) {
     const root = $("#tpl-sign-form").content.firstElementChild.cloneNode(true);
     host.append(root);
     const r = (role) => $(`[data-role="${role}"]`, root);
+    const external = typeof getVisible === "function";
     let method = "winstore";
     let certs = [];
     let winCerts = [];
@@ -472,55 +473,69 @@
     }));
 
     // --- semnătură vizibilă
-    const visStage = r("vis-stage");
-    const view = pageView(visStage);
-    view.setMode("rect", {
-      onRect: (rect) => { visRect = rect; view.showSel(rect, "sig-rect"); },
-      onCancel: () => view.showSel(visRect, "sig-rect"),
-    });
+    if (external) {
+      // Poziționarea se face pe previzualizarea mare din secțiunea Semnare;
+      // panoul intern (stage mic + selector pagină) nu este folosit.
+      r("visible").checked = !!visibleDefault;
+      r("visible-pane").hidden = true;
+      if (onVisibleToggle) onVisibleToggle(r("visible").checked);
+      r("visible").addEventListener("change", () => {
+        if (onVisibleToggle) onVisibleToggle(r("visible").checked);
+      });
+    } else {
+      const visStage = r("vis-stage");
+      const view = pageView(visStage);
+      view.setMode("rect", {
+        onRect: (rect) => { visRect = rect; view.showSel(rect, "sig-rect"); },
+        onCancel: () => view.showSel(visRect, "sig-rect"),
+      });
 
-    async function showVisible() {
-      const pdf = await getPdf();
-      if (!pdf) {
-        r("visible").checked = false;
-        r("visible-pane").hidden = true;
-        throw new Error("Selectați întâi documentul PDF pentru a poziționa semnătura.");
+      // eslint-disable-next-line no-inner-declarations
+      var showVisible = async function showVisible() {
+        const pdf = await getPdf();
+        if (!pdf) {
+          r("visible").checked = false;
+          r("visible-pane").hidden = true;
+          throw new Error("Selectați întâi documentul PDF pentru a poziționa semnătura.");
+        }
+        if (pdf !== visPdf) {
+          visPdf = pdf;
+          visInfo = null;
+          visStage.prepend(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se încarcă pagina…"));
+          visInfo = await pdfInfo(pdf);
+          const sel = r("vis-page");
+          sel.replaceChildren(...Array.from({ length: visInfo.pages }, (_, i) => h("option", { value: String(i) }, String(i + 1))));
+          // implicit: ultima pagină
+          visPage = Math.max(0, visInfo.pages - 1);
+          sel.value = String(visPage);
+          visRect = defaultRect(visPage);
+        }
+        await loadVisPage();
+      };
+      // eslint-disable-next-line no-inner-declarations
+      function defaultRect(page) {
+        const [W, H] = visInfo.page_sizes[page] || [595, 842];
+        const w = 200, hh = 70, m = 40;
+        return [(W - m - w) / W, (H - m - hh) / H, (W - m) / W, (H - m) / H];
       }
-      if (pdf !== visPdf) {
-        visPdf = pdf;
-        visInfo = null;
-        visStage.prepend(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se încarcă pagina…"));
-        visInfo = await pdfInfo(pdf);
-        const sel = r("vis-page");
-        sel.replaceChildren(...Array.from({ length: visInfo.pages }, (_, i) => h("option", { value: String(i) }, String(i + 1))));
-        // implicit: ultima pagină
-        visPage = Math.max(0, visInfo.pages - 1);
-        sel.value = String(visPage);
+      // eslint-disable-next-line no-inner-declarations
+      async function loadVisPage() {
+        $$(".loading", visStage).forEach((x) => x.remove());
+        const [W] = visInfo.page_sizes[visPage] || [595];
+        await view.load(visPdf, visPage, Math.min(2, Math.max(0.6, 900 / W)));
+        view.showSel(visRect, "sig-rect");
+      }
+      r("vis-page").addEventListener("change", () => {
+        visPage = Number(r("vis-page").value);
         visRect = defaultRect(visPage);
-      }
-      await loadVisPage();
+        loadVisPage().catch((e) => toast(e.message, "err"));
+      });
+      r("visible").addEventListener("change", () => {
+        const on = r("visible").checked;
+        r("visible-pane").hidden = !on;
+        if (on) showVisible().catch((e) => toast(e.message, "err"));
+      });
     }
-    function defaultRect(page) {
-      const [W, H] = visInfo.page_sizes[page] || [595, 842];
-      const w = 200, hh = 70, m = 40;
-      return [(W - m - w) / W, (H - m - hh) / H, (W - m) / W, (H - m) / H];
-    }
-    async function loadVisPage() {
-      $$(".loading", visStage).forEach((x) => x.remove());
-      const [W] = visInfo.page_sizes[visPage] || [595];
-      await view.load(visPdf, visPage, Math.min(2, Math.max(0.6, 900 / W)));
-      view.showSel(visRect, "sig-rect");
-    }
-    r("vis-page").addEventListener("change", () => {
-      visPage = Number(r("vis-page").value);
-      visRect = defaultRect(visPage);
-      loadVisPage().catch((e) => toast(e.message, "err"));
-    });
-    r("visible").addEventListener("change", () => {
-      const on = r("visible").checked;
-      r("visible-pane").hidden = !on;
-      if (on) showVisible().catch((e) => toast(e.message, "err"));
-    });
 
     return {
       root,
@@ -566,12 +581,20 @@
         }
         if (showContact && r("contact").value.trim()) f.append("contact", r("contact").value.trim());
         if (r("visible").checked) {
-          if (!visInfo || !visRect) throw new Error("Previzualizarea paginii nu s-a încărcat încă; poziționați semnătura.");
-          const [W, H] = visInfo.page_sizes[visPage];
-          const [x0, y0, x1, y1] = visRect;
+          let vInfo = visInfo, vPage = visPage, vRect = visRect;
+          if (external) {
+            const st = getVisible();
+            if (!st || !st.info || !st.rect) {
+              throw new Error("Previzualizarea paginii nu s-a încărcat încă; poziționați semnătura.");
+            }
+            vInfo = st.info; vPage = st.page; vRect = st.rect;
+          }
+          if (!vInfo || !vRect) throw new Error("Previzualizarea paginii nu s-a încărcat încă; poziționați semnătura.");
+          const [W, H] = vInfo.page_sizes[vPage];
+          const [x0, y0, x1, y1] = vRect;
           // conversie în puncte PDF, origine stânga-jos
           f.append("visible", "1");
-          f.append("page", String(visPage));
+          f.append("page", String(vPage));
           f.append("x", (x0 * W).toFixed(2));
           f.append("y", ((1 - y1) * H).toFixed(2));
           f.append("w", ((x1 - x0) * W).toFixed(2));
@@ -580,6 +603,7 @@
       },
       /** Documentul s-a schimbat – reîncarcă previzualizarea dacă e deschisă. */
       pdfChanged() {
+        if (external) return; // previzualizarea mare este gestionată separat
         visPdf = null;
         if (r("visible").checked) showVisible().catch((e) => toast(e.message, "err"));
       },
@@ -599,16 +623,119 @@
   // =================================================================== 1. SEMNARE
   let mainSignForm = null;
   sectionInit.semnare = () => {
+    // ---- previzualizarea mare (piesa centrală): poziționarea semnăturii vizibile
+    const signLayout = $("#sign-layout");
+    const bigPreview = (() => {
+      const stage = $("#sign-preview-stage");
+      const view = pageView(stage);
+      const hint = $("#sign-preview-hint");
+      let zoomVal = "fit";
+      const state = { pdf: null, info: null, page: 0, visible: true, rects: {} };
+
+      function defaultRect(page) {
+        const [W, H] = (state.info && state.info.page_sizes[page]) || [595, 842];
+        const w = 200, hh = 70, m = 40;
+        return [(W - m - w) / W, (H - m - hh) / H, (W - m) / W, (H - m) / H];
+      }
+      function rectFor(page) {
+        if (!(page in state.rects)) state.rects[page] = defaultRect(page);
+        return state.rects[page];
+      }
+      function zoomFor() {
+        if (zoomVal !== "fit") return Number(zoomVal);
+        const [W] = (state.info && state.info.page_sizes[state.page]) || [595];
+        const avail = Math.max(240, stage.clientWidth - 32);
+        return Math.round(Math.min(3, Math.max(0.4, avail / W)) * 20) / 20;
+      }
+      function updateHint() {
+        if (!state.info) { hint.textContent = ""; return; }
+        hint.textContent = state.visible
+          ? `Semnătură vizibilă pe pagina ${state.page + 1}. Trageți un dreptunghi pentru a o repoziționa.`
+          : "Semnătura vizibilă este dezactivată. Bifați „Semnătură vizibilă” pentru a o plasa.";
+      }
+      function paintSel() {
+        view.showSel(state.visible && state.info ? rectFor(state.page) : null, "sig-rect");
+      }
+      view.setMode("rect", {
+        onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
+        onCancel: () => paintSel(),
+      });
+      function syncPager() {
+        const n = state.info ? state.info.pages : 0;
+        $("#sign-pagecount").textContent = String(n);
+        $("#sign-pagenum").max = String(n);
+        $("#sign-pagenum").value = String(state.page + 1);
+        $("#sign-prev").disabled = state.page <= 0;
+        $("#sign-next").disabled = state.page >= n - 1;
+      }
+      async function render() {
+        if (!state.pdf || !state.info) return;
+        await view.load(state.pdf, state.page, zoomFor());
+        view.setMode(state.visible ? "rect" : "none", {
+          onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
+          onCancel: () => paintSel(),
+        });
+        paintSel();
+        syncPager();
+        updateHint();
+      }
+      return {
+        async setPdf(pdf) {
+          state.pdf = pdf;
+          state.rects = {};
+          state.info = await pdfInfo(pdf);
+          state.page = Math.max(0, state.info.pages - 1); // implicit: ultima pagină (ca în Adobe)
+          await render();
+        },
+        async goPage(p) {
+          if (!state.info) return;
+          state.page = Math.max(0, Math.min(state.info.pages - 1, p));
+          await render();
+        },
+        setZoom(z) { zoomVal = z === "fit" ? "fit" : Number(z); return render(); },
+        setVisibleEnabled(on) {
+          state.visible = !!on;
+          view.setMode(state.visible ? "rect" : "none", {
+            onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
+            onCancel: () => paintSel(),
+          });
+          paintSel();
+          updateHint();
+        },
+        getVisible() {
+          if (!state.info) return null;
+          return { info: state.info, page: state.page, rect: rectFor(state.page) };
+        },
+      };
+    })();
+
+    $("#sign-prev").addEventListener("click", () => bigPreview.goPage(signPreviewPage() - 1).catch((e) => toast(e.message, "err")));
+    $("#sign-next").addEventListener("click", () => bigPreview.goPage(signPreviewPage() + 1).catch((e) => toast(e.message, "err")));
+    $("#sign-pagenum").addEventListener("change", (e) => bigPreview.goPage(Number(e.target.value) - 1).catch((err) => toast(err.message, "err")));
+    $("#sign-zoom").addEventListener("change", (e) => bigPreview.setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value)).catch((err) => toast(err.message, "err")));
+    function signPreviewPage() { return Number($("#sign-pagenum").value) - 1; }
+
     const drop = dropZone($("#sign-drop"), {
       validate: isPdf,
-      onChange: () => { if (mainSignForm) mainSignForm.pdfChanged(); hideSignSuccess(); },
+      onChange: (files) => {
+        hideSignSuccess();
+        const f = files[0];
+        signLayout.hidden = !f;
+        if (mainSignForm) mainSignForm.pdfChanged();
+        if (f) bigPreview.setPdf(f).catch((e) => toast(e.message, "err"));
+      },
     });
-    mainSignForm = createSignForm($("#sign-form-host"), { getPdf: async () => drop.file });
+    mainSignForm = createSignForm($("#sign-form-host"), {
+      getPdf: async () => drop.file,
+      getVisible: () => bigPreview.getVisible(),
+      onVisibleToggle: (on) => bigPreview.setVisibleEnabled(on),
+      visibleDefault: true,
+    });
 
     const signBtn = $("#sign-btn");
-    // gazdă pentru panoul de succes, imediat după zona de acțiuni
+    // gazdă pentru panoul de succes, sub previzualizare + panoul de semnare
     const successHost = h("div", { id: "sign-success-host" });
-    signBtn.parentElement.after(successHost);
+    signLayout.after(successHost);
 
     function hideSignSuccess() {
       successHost.replaceChildren();
