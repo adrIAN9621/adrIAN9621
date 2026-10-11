@@ -765,3 +765,41 @@ html, body { overflow-x: hidden; max-width: 100%; }
 .fx-aurora { opacity: 1 !important; }
 .fx-grid { opacity: .08 !important; }
 body { background: var(--bg); color: var(--text); }
+
+/* ===================================================================== */
+/*  Semnare – flux „Adobe”: previzualizare mare + panou de semnare       */
+/* ===================================================================== */
+.sign-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1rem;
+}
+.sign-preview { min-width: 0; }
+.sign-pager { margin-bottom: .6rem; }
+/* previzualizarea este piesa centrală: ocupă aproape tot ecranul */
+.sign-stage {
+  min-height: 64vh;
+  max-height: 86vh;
+}
+.sign-preview .page-overlay { cursor: crosshair; }
+#sign-preview-hint { margin: .5rem .1rem 0; }
+.sign-side {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.sign-side #sign-form-host { margin-bottom: .75rem; }
+.sign-side .actions { margin-top: 0; }
+
+@media (max-width: 1000px) {
+  .sign-layout { grid-template-columns: 1fr; }
+  .sign-side { position: static; }
+  .sign-stage { min-height: 46vh; max-height: 70vh; }
+}
+@media (max-width: 480px) {
+  .sign-stage { min-height: 38vh; }
+}

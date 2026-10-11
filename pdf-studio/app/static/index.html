@@ -32,14 +32,30 @@
     <!-- ============================ SEMNARE ============================ -->
     <section id="sec-semnare" class="section" data-section="semnare">
       <h1>Semnare document</h1>
-      <p class="lead">Semnați electronic un PDF (PAdES) cu un token USB, un fișier de certificat sau un cont de semnare în cloud.</p>
-      <div class="card">
+      <p class="lead">Semnați electronic un PDF (PAdES) cu un token USB, un fișier de certificat sau un cont de semnare în cloud. Documentul primește implicit o semnătură vizibilă; trageți un dreptunghi pe previzualizare pentru a o poziționa.</p>
+      <div class="card" id="sign-drop-card">
         <div id="sign-drop"></div>
       </div>
-      <div class="card" id="sign-form-host"></div>
-      <div class="actions">
-        <button class="btn primary" id="sign-btn">Semnează</button>
-        <a href="#" class="link small" id="testcert-link">Generează certificat de test</a>
+      <div class="sign-layout" id="sign-layout" hidden>
+        <div class="sign-preview">
+          <div class="pager sign-pager">
+            <button class="btn small" id="sign-prev">&lsaquo; Anterioara</button>
+            <span>Pagina <input type="number" id="sign-pagenum" min="1" value="1" class="num"> / <span id="sign-pagecount"></span></span>
+            <button class="btn small" id="sign-next">Următoarea &rsaquo;</button>
+            <label class="zoomsel">Zoom
+              <select id="sign-zoom"><option value="fit" selected>Potrivire lățime</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+            </label>
+          </div>
+          <div class="page-stage sign-stage" id="sign-preview-stage"></div>
+          <p class="hint" id="sign-preview-hint">Trageți un dreptunghi pe pagină pentru a poziționa semnătura vizibilă.</p>
+        </div>
+        <aside class="sign-side">
+          <div class="card" id="sign-form-host"></div>
+          <div class="actions">
+            <button class="btn primary" id="sign-btn">Semnează</button>
+            <a href="#" class="link small" id="testcert-link">Generează certificat de test</a>
+          </div>
+        </aside>
       </div>
     </section>
 
