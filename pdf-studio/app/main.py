@@ -86,6 +86,11 @@ async def pdf_render(file: UploadFile = File(...), page: int = Form(0), zoom: fl
     return Response(editor.render_page(await _read(file), page, zoom), media_type="image/png")
 
 
+@app.post("/api/pdf/spans")
+async def pdf_spans(file: UploadFile = File(...), page: int = Form(0)):
+    return editor.spans(await _read(file), page)
+
+
 @app.post("/api/pdf/edit")
 async def pdf_edit(file: UploadFile = File(...), ops: str = Form(...)):
     try:
