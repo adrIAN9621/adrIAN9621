@@ -266,6 +266,30 @@ input.num { width: 4.5rem; padding: .25rem .4rem; }
 .op-mark.highlight { background: rgba(250, 204, 21, .4); border-color: #ca8a04; }
 .op-mark.pt { width: 10px; height: 10px; border-radius: 50%; background: #9333ea; transform: translate(-5px, -5px); }
 .op-mark .lbl { position: absolute; left: 0; top: -16px; font: 600 10px/14px system-ui; color: #9333ea; background: rgba(255,255,255,.85); padding: 0 3px; white-space: nowrap; }
+.op-mark.edit_text { border-color: #0e9ac2; background: rgba(14, 154, 194, .12); }
+
+/* ---------- click-to-edit (editare text pe pagină) ---------- */
+.edit-text-layer { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.edit-span {
+  position: absolute; pointer-events: auto; cursor: text; white-space: pre;
+  background: transparent; padding: 0; margin: 0; border: 1px solid transparent;
+  border-radius: 2px; overflow: visible; box-sizing: border-box;
+  font-family: system-ui, "Segoe UI", Arial, sans-serif; transition: background .12s, border-color .12s;
+}
+.edit-span:hover { border-color: rgba(14, 154, 194, .55); background: rgba(14, 154, 194, .06); }
+.edit-span:focus { outline: none; border-color: var(--primary); background: #fff; color: #000 !important; box-shadow: 0 0 0 2px rgba(14, 154, 194, .25); }
+
+/* ---------- panou succes semnare ---------- */
+.sign-success { border: 1px solid var(--ok); background: var(--ok-soft); }
+.sign-success-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .35rem; }
+.sign-success-head h2 { margin: 0; color: var(--ok); }
+.sign-success-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; background: var(--ok); color: #fff;
+  font-weight: 700; font-size: 1.05rem; flex: none;
+}
+.sign-success .small { font-size: .9rem; }
+.sign-success-val:not(:empty) { margin-top: .75rem; }
 
 /* ---------- editor ---------- */
 .ed-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }

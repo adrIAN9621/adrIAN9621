@@ -201,6 +201,47 @@ def info(pdf: bytes) -> dict:
         doc.close()
 
 
+def spans(pdf: bytes, page: int) -> dict:
+    """Returnează dimensiunea paginii (în puncte) și span-urile de text ale paginii.
+
+    Coordonatele bbox sunt în puncte PDF, cu originea în colțul STÂNGA-SUS
+    (așa cum le oferă PyMuPDF `get_text("dict")`). Câte o intrare per span;
+    span-urile goale sau formate doar din spații sunt ignorate.
+    """
+    doc = _open(pdf)
+    try:
+        p = doc[_page_index(doc, page)]
+        rect = p.rect
+        out = []
+        d = p.get_text("dict")
+        for b in d.get("blocks", []):
+            for line in b.get("lines", []):
+                for s in line.get("spans", []):
+                    text = s.get("text", "") or ""
+                    if not text.strip():
+                        continue
+                    ci = int(s.get("color", 0) or 0)
+                    col = "#%02x%02x%02x" % ((ci >> 16) & 255, (ci >> 8) & 255, ci & 255)
+                    flags = int(s.get("flags", 0) or 0)
+                    font = str(s.get("font", "") or "")
+                    fl = font.lower()
+                    bold = bool(flags & 16) or "bold" in fl or "black" in fl or "heavy" in fl
+                    italic = bool(flags & 2) or "italic" in fl or "oblique" in fl
+                    bbox = [round(float(v), 2) for v in s.get("bbox", (0, 0, 0, 0))]
+                    out.append({
+                        "text": text,
+                        "bbox": bbox,
+                        "size": round(float(s.get("size", 0) or 0), 2),
+                        "color": col,
+                        "font": font,
+                        "bold": bold,
+                        "italic": italic,
+                    })
+        return {"width": round(rect.width, 2), "height": round(rect.height, 2), "spans": out}
+    finally:
+        doc.close()
+
+
 def render_page(pdf: bytes, page: int, zoom: float = 1.5) -> bytes:
     doc = _open(pdf)
     try:
@@ -349,6 +390,37 @@ def _apply_op(doc, op: dict):
             raise
         except Exception as exc:
             raise ValueError(f"Imaginea nu a putut fi inserată: {exc}") from exc
+    elif t == "edit_text":
+        p = doc[_page_index(doc, op.get("page", 0))]
+        raw = op.get("rect")
+        rr = _rect(p, raw)  # dreptunghi nerotit, pentru redactare
+        text = str(op.get("text") if op.get("text") is not None else "")
+        color = _color(op.get("color"), (0, 0, 0))
+        # elimină glifele originale din zonă
+        p.add_redact_annot(rr, fill=(1, 1, 1))
+        p.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                           graphics=getattr(fitz, "PDF_REDACT_LINE_ART_NONE", 0))
+        if text.strip():
+            disp = fitz.Rect(*[float(v) for v in raw])
+            disp.normalize()
+            fi = _ro_font()
+            font = fi["font"]
+            try:
+                size = float(op.get("size") or 0)
+            except (TypeError, ValueError):
+                size = 0
+            if size <= 0:
+                size = max(disp.height * 0.8, 4)
+            if disp.height > 0 and size > disp.height:
+                size = disp.height
+            # micșorează dacă textul ar depăși lățimea dreptunghiului
+            try:
+                tl = font.text_length(text, fontsize=size)
+                if disp.width > 0 and tl > disp.width and tl > 0:
+                    size = max(4.0, size * disp.width / tl)
+            except Exception:
+                pass
+            _insert_text(p, disp.x0, disp.y0, text, size, color)
     elif t == "replace_text":
         _replace_text(doc, op.get("search") or "", op.get("replace") or "", op.get("page"))
     elif t == "rotate":

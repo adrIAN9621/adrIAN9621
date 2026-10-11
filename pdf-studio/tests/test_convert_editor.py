@@ -148,6 +148,85 @@ def test_replace_text():
         editor.apply_edits(make_pdf(1), [{"type": "replace_text", "search": "nuexista", "replace": "x"}])
 
 
+# ---------------------------------------------------------------- spans / edit_text
+
+def _pdf_with_text(text, x=50, y=100, size=16, w=400, hgt=300):
+    doc = fitz.open()
+    p = doc.new_page(width=w, height=hgt)
+    p.insert_text((x, y), text, fontsize=size)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_spans_basic():
+    res = editor.spans(_pdf_with_text("Vechi text", x=50, y=100, size=14, w=300, hgt=200), 0)
+    assert res["width"] == 300 and res["height"] == 200
+    found = [s for s in res["spans"] if "Vechi" in s["text"]]
+    assert found, "span-ul cu textul cunoscut nu a fost găsit"
+    s = found[0]
+    assert abs(s["size"] - 14) < 1.0
+    x0, y0, x1, y1 = s["bbox"]
+    # bbox plauzibil: originea sus-stânga, lângă punctul de inserare (x~50, baseline~100)
+    assert 0 <= x0 <= 300 and 0 <= y0 <= 200 and x1 <= 300 and y1 <= 200
+    assert 40 <= x0 <= 60
+    assert y0 <= 100 <= y1
+    assert s["color"].startswith("#") and len(s["color"]) == 7
+    assert isinstance(s["bold"], bool) and isinstance(s["italic"], bool)
+
+
+def test_spans_skips_whitespace():
+    doc = fitz.open()
+    p = doc.new_page(width=300, height=200)
+    p.insert_text((50, 50), "   ", fontsize=12)
+    p.insert_text((50, 120), "Real", fontsize=12)
+    data = doc.tobytes(); doc.close()
+    res = editor.spans(data, 0)
+    assert res["spans"]
+    assert all(s["text"].strip() for s in res["spans"])
+
+
+def test_spans_bad_page():
+    with pytest.raises(ValueError):
+        editor.spans(_pdf_with_text("x"), 9)
+
+
+def test_edit_text_replaces():
+    data = _pdf_with_text("Vechi")
+    sp = [s for s in editor.spans(data, 0)["spans"] if "Vechi" in s["text"]][0]
+    out = editor.apply_edits(data, [{
+        "type": "edit_text", "page": 0, "rect": sp["bbox"],
+        "text": "Nou", "size": sp["size"], "color": sp["color"],
+    }])
+    t = page_text(out, 0)
+    assert "Nou" in t
+    assert "Vechi" not in t
+
+
+def test_edit_text_diacritics():
+    data = _pdf_with_text("Vechi")
+    sp = [s for s in editor.spans(data, 0)["spans"] if "Vechi" in s["text"]][0]
+    out = editor.apply_edits(data, [{
+        "type": "edit_text", "page": 0, "rect": sp["bbox"],
+        "text": "Țară șiț", "size": sp["size"], "color": "#ff0000",
+    }])
+    t = page_text(out, 0)
+    assert "Țară" in t and "șiț" in t
+    assert "Vechi" not in t
+
+
+def test_edit_text_coexists_with_other_ops():
+    data = _pdf_with_text("Vechi")
+    sp = [s for s in editor.spans(data, 0)["spans"] if "Vechi" in s["text"]][0]
+    out = editor.apply_edits(data, [
+        {"type": "edit_text", "page": 0, "rect": sp["bbox"], "text": "Nou", "size": sp["size"], "color": sp["color"]},
+        {"type": "add_text", "page": 0, "x": 50, "y": 200, "text": "Adăugat ș", "size": 12, "color": "#0000ff"},
+        {"type": "highlight", "page": 0, "rect": [40, 180, 200, 215]},
+    ])
+    t = page_text(out, 0)
+    assert "Nou" in t and "Adăugat ș" in t and "Vechi" not in t
+
+
 def test_rotate():
     out = editor.apply_edits(make_pdf(2), [{"type": "rotate", "page": 1, "angle": 90}])
     with open_pdf(out) as d:
