@@ -124,7 +124,8 @@ def _open_app_window(url: str) -> bool:
         browser,
         f"--app={url}",
         f"--user-data-dir={profile}",
-        "--window-size=1280,900",
+        "--start-maximized",
+        "--new-window",
         "--no-first-run",
         "--no-default-browser-check",
     ]
