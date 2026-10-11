@@ -119,20 +119,19 @@ def _open_app_window(url: str) -> bool:
     if not browser:
         _log("Nu am găsit Edge/Chrome pentru modul aplicație.")
         return False
-    profile = os.path.join(_data_dir(), "window-profile")
+    # profil unic per pornire -> mereu o fereastră nouă, legată de acest server
+    profile = os.path.join(_data_dir(), "win-%d" % os.getpid())
     args = [
         browser,
         f"--app={url}",
         f"--user-data-dir={profile}",
         "--start-maximized",
-        "--new-window",
         "--no-first-run",
         "--no-default-browser-check",
     ]
     try:
         _log(f"Deschid fereastra cu: {browser}")
-        proc = subprocess.Popen(args)
-        proc.wait()  # ținem procesul viu cât e deschisă fereastra
+        subprocess.Popen(args)  # pornim și mergem mai departe (NU așteptăm)
         return True
     except Exception:
         _log("EROARE la deschiderea ferestrei:\n" + traceback.format_exc())
@@ -158,6 +157,13 @@ def main() -> None:
         return
 
     if _open_app_window(url):
+        # serverul rămâne activ cât timp fereastra PowerShell/terminalul e deschis
+        print(f"PDF Studio rulează. Nu închideți această fereastră. ({url})")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
         return
 
     # Rezervă: browserul implicit, ca să apară mereu ceva.
