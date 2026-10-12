@@ -1,4 +1,4 @@
-/* PDF Studio – interfață web (vanilla JS, fără dependențe externe). */
+/* PDF Studio – interfață web în stil Adobe Acrobat (vanilla JS, fără dependențe). */
 (() => {
   "use strict";
 
@@ -327,23 +327,6 @@
     return view;
   }
 
-  // =================================================================== navigare
-  const sectionInit = {};
-  const sectionDone = new Set();
-
-  function showSection(name) {
-    if (!$(`.section[data-section="${name}"]`)) name = "semnare";
-    $$(".section").forEach((s) => { s.hidden = s.dataset.section !== name; });
-    $$(".nav-item").forEach((a) => a.classList.toggle("active", a.dataset.section === name));
-    $("#sidebar").classList.remove("open");
-    if (sectionInit[name] && !sectionDone.has(name)) {
-      sectionDone.add(name);
-      try { sectionInit[name](); } catch (e) { console.error(e); toast(e.message, "err"); }
-    } else if (sectionInit[name + ":show"]) {
-      sectionInit[name + ":show"]();
-    }
-  }
-
   // =================================================================== formular semnare (reutilizabil)
   let pkcs11LibsPromise = null;
   function loadPkcs11Libs() {
@@ -474,8 +457,7 @@
 
     // --- semnătură vizibilă
     if (external) {
-      // Poziționarea se face pe previzualizarea mare din secțiunea Semnare;
-      // panoul intern (stage mic + selector pagină) nu este folosit.
+      // Poziționarea se face pe vizualizatorul central; panoul intern nu este folosit.
       r("visible").checked = !!visibleDefault;
       r("visible-pane").hidden = true;
       if (onVisibleToggle) onVisibleToggle(r("visible").checked);
@@ -505,7 +487,6 @@
           visInfo = await pdfInfo(pdf);
           const sel = r("vis-page");
           sel.replaceChildren(...Array.from({ length: visInfo.pages }, (_, i) => h("option", { value: String(i) }, String(i + 1))));
-          // implicit: ultima pagină
           visPage = Math.max(0, visInfo.pages - 1);
           sel.value = String(visPage);
           visRect = defaultRect(visPage);
@@ -603,7 +584,7 @@
       },
       /** Documentul s-a schimbat – reîncarcă previzualizarea dacă e deschisă. */
       pdfChanged() {
-        if (external) return; // previzualizarea mare este gestionată separat
+        if (external) return; // vizualizatorul central este gestionat separat
         visPdf = null;
         if (r("visible").checked) showVisible().catch((e) => toast(e.message, "err"));
       },
@@ -620,225 +601,7 @@
     };
   }
 
-  // =================================================================== 1. SEMNARE
-  let mainSignForm = null;
-  sectionInit.semnare = () => {
-    // ---- previzualizarea mare (piesa centrală): poziționarea semnăturii vizibile
-    const signLayout = $("#sign-layout");
-    const bigPreview = (() => {
-      const stage = $("#sign-preview-stage");
-      const view = pageView(stage);
-      const hint = $("#sign-preview-hint");
-      let zoomVal = "fit";
-      const state = { pdf: null, info: null, page: 0, visible: true, rects: {} };
-
-      function defaultRect(page) {
-        const [W, H] = (state.info && state.info.page_sizes[page]) || [595, 842];
-        const w = 200, hh = 70, m = 40;
-        return [(W - m - w) / W, (H - m - hh) / H, (W - m) / W, (H - m) / H];
-      }
-      function rectFor(page) {
-        if (!(page in state.rects)) state.rects[page] = defaultRect(page);
-        return state.rects[page];
-      }
-      function zoomFor() {
-        if (zoomVal !== "fit") return Number(zoomVal);
-        const [W] = (state.info && state.info.page_sizes[state.page]) || [595];
-        const avail = Math.max(240, stage.clientWidth - 32);
-        return Math.round(Math.min(3, Math.max(0.4, avail / W)) * 20) / 20;
-      }
-      function updateHint() {
-        if (!state.info) { hint.textContent = ""; return; }
-        hint.textContent = state.visible
-          ? `Semnătură vizibilă pe pagina ${state.page + 1}. Trageți un dreptunghi pentru a o repoziționa.`
-          : "Semnătura vizibilă este dezactivată. Bifați „Semnătură vizibilă” pentru a o plasa.";
-      }
-      function paintSel() {
-        view.showSel(state.visible && state.info ? rectFor(state.page) : null, "sig-rect");
-      }
-      view.setMode("rect", {
-        onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
-        onCancel: () => paintSel(),
-      });
-      function syncPager() {
-        const n = state.info ? state.info.pages : 0;
-        $("#sign-pagecount").textContent = String(n);
-        $("#sign-pagenum").max = String(n);
-        $("#sign-pagenum").value = String(state.page + 1);
-        $("#sign-prev").disabled = state.page <= 0;
-        $("#sign-next").disabled = state.page >= n - 1;
-      }
-      async function render() {
-        if (!state.pdf || !state.info) return;
-        await view.load(state.pdf, state.page, zoomFor());
-        view.setMode(state.visible ? "rect" : "none", {
-          onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
-          onCancel: () => paintSel(),
-        });
-        paintSel();
-        syncPager();
-        updateHint();
-      }
-      return {
-        async setPdf(pdf) {
-          state.pdf = pdf;
-          state.rects = {};
-          state.info = await pdfInfo(pdf);
-          state.page = Math.max(0, state.info.pages - 1); // implicit: ultima pagină (ca în Adobe)
-          await render();
-        },
-        async goPage(p) {
-          if (!state.info) return;
-          state.page = Math.max(0, Math.min(state.info.pages - 1, p));
-          await render();
-        },
-        setZoom(z) { zoomVal = z === "fit" ? "fit" : Number(z); return render(); },
-        setVisibleEnabled(on) {
-          state.visible = !!on;
-          view.setMode(state.visible ? "rect" : "none", {
-            onRect: (rect) => { state.rects[state.page] = rect; paintSel(); },
-            onCancel: () => paintSel(),
-          });
-          paintSel();
-          updateHint();
-        },
-        getVisible() {
-          if (!state.info) return null;
-          return { info: state.info, page: state.page, rect: rectFor(state.page) };
-        },
-      };
-    })();
-
-    $("#sign-prev").addEventListener("click", () => bigPreview.goPage(signPreviewPage() - 1).catch((e) => toast(e.message, "err")));
-    $("#sign-next").addEventListener("click", () => bigPreview.goPage(signPreviewPage() + 1).catch((e) => toast(e.message, "err")));
-    $("#sign-pagenum").addEventListener("change", (e) => bigPreview.goPage(Number(e.target.value) - 1).catch((err) => toast(err.message, "err")));
-    $("#sign-zoom").addEventListener("change", (e) => bigPreview.setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value)).catch((err) => toast(err.message, "err")));
-    function signPreviewPage() { return Number($("#sign-pagenum").value) - 1; }
-
-    const drop = dropZone($("#sign-drop"), {
-      validate: isPdf,
-      onChange: (files) => {
-        hideSignSuccess();
-        const f = files[0];
-        signLayout.hidden = !f;
-        if (mainSignForm) mainSignForm.pdfChanged();
-        if (f) bigPreview.setPdf(f).catch((e) => toast(e.message, "err"));
-      },
-    });
-    mainSignForm = createSignForm($("#sign-form-host"), {
-      getPdf: async () => drop.file,
-      getVisible: () => bigPreview.getVisible(),
-      onVisibleToggle: (on) => bigPreview.setVisibleEnabled(on),
-      visibleDefault: true,
-    });
-
-    const signBtn = $("#sign-btn");
-    // gazdă pentru panoul de succes, sub previzualizare + panoul de semnare
-    const successHost = h("div", { id: "sign-success-host" });
-    signLayout.after(successHost);
-
-    function hideSignSuccess() {
-      successHost.replaceChildren();
-      signBtn.hidden = false;
-    }
-
-    function showSignSuccess(blob, filename) {
-      const name = filename || "document_semnat.pdf";
-      // fac documentul semnat să fie documentul curent (pt. re-semnare / re-validare)
-      const file = new File([blob], name, { type: "application/pdf" });
-      drop.set([file]); // declanșează onChange -> pdfChanged + hideSignSuccess
-      signBtn.hidden = true;
-
-      const infoLine = h("div", { class: "muted small" }, "Se analizează documentul semnat…");
-      pdfInfo(file).then((inf) => {
-        const n = inf.signature_count;
-        infoLine.textContent = `${name} · ${n} semnătur${n === 1 ? "ă" : "i"} în document.`;
-      }).catch(() => { infoLine.textContent = name; });
-
-      const valOut = h("div", { class: "sign-success-val" });
-
-      const panel = h("div", { class: "card sign-success" },
-        h("div", { class: "sign-success-head" },
-          h("span", { class: "sign-success-check", "aria-hidden": "true" }, "✓"),
-          h("h2", null, "Document semnat")),
-        infoLine,
-        h("div", { class: "actions" },
-          h("button", { class: "btn primary", type: "button", onclick: () => saveBlob(blob, name) }, "Descarcă documentul semnat"),
-          h("button", { class: "btn", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
-            valOut.replaceChildren(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se validează semnătura…"));
-            try {
-              const sigs = await api("/api/validate", { body: fd({ file }) });
-              renderValidation(valOut, sigs, name);
-            } catch (err) {
-              valOut.replaceChildren();
-              toast(err.message || "Validarea semnăturii a eșuat.", "err");
-            }
-          }) }, "Validează semnătura"),
-          h("button", { class: "btn", type: "button", onclick: () => hideSignSuccess() }, "Semnează din nou")),
-        valOut);
-      successHost.replaceChildren(panel);
-    }
-
-    signBtn.addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!drop.file) throw new Error("Selectați documentul PDF de semnat.");
-      const f = fd({ file: drop.file });
-      mainSignForm.appendTo(f);
-      const { blob, filename } = await api("/api/sign", { body: f, as: "blob" });
-      showSignSuccess(blob, filename || "document_semnat.pdf");
-      toast("Documentul a fost semnat.", "ok");
-    }));
-
-    // certificat de test
-    const dlg = $("#testcert-dialog");
-    $("#testcert-link").addEventListener("click", (e) => {
-      e.preventDefault();
-      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
-    });
-    $("#testcert-form").addEventListener("submit", (e) => {
-      const submitter = e.submitter;
-      if (!submitter || submitter.value !== "ok") return;
-      e.preventDefault();
-      const form = e.currentTarget;
-      busy($("#testcert-go"), async () => {
-        const data = Object.fromEntries(new FormData(form));
-        const { blob, filename } = await api("/api/sign/test-certificate", { body: fd(data), as: "blob" });
-        const name = filename || "certificat_test.pfx";
-        saveBlob(blob, name);
-        const file = new File([blob], name, { type: "application/x-pkcs12" });
-        if (mainSignForm.setPfx(file, data.password)) {
-          toast("Certificatul de test a fost descărcat și selectat în formularul de semnare.", "ok");
-        } else {
-          toast("Certificatul de test a fost descărcat.", "ok");
-        }
-        dlg.close();
-      });
-    });
-  };
-
-  // =================================================================== 2. VALIDARE
-  sectionInit.validare = () => {
-    const drop = dropZone($("#val-drop"), { validate: isPdf });
-    const roots = dropZone($("#val-roots-drop"), {
-      multiple: true, accept: ".cer,.crt,.pem,.der,.p7b",
-      title: "Trageți certificatele rădăcină aici",
-    });
-    const out = $("#val-results");
-
-    $("#val-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!drop.file) throw new Error("Selectați documentul PDF de validat.");
-      const f = fd({ file: drop.file });
-      roots.files.forEach((r) => f.append("roots", r, r.name));
-      out.replaceChildren(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se validează semnăturile…"));
-      try {
-        const sigs = await api("/api/validate", { body: f });
-        renderValidation(out, sigs, drop.file.name);
-      } catch (err) {
-        out.replaceChildren();
-        throw err;
-      }
-    }));
-  };
-
+  // =================================================================== validare (randare)
   function sigStatus(s) {
     if (s.intact && s.valid && s.trusted) return ["ok", "Validă și de încredere"];
     if (s.intact && s.valid) return ["warn", "Validă, dar emitentul nu este de încredere"];
@@ -884,56 +647,191 @@
     });
   }
 
-  // =================================================================== 3. CONVERSIE
-  sectionInit.conversie = () => {
-    api("/api/convert/status").then((st) => {
-      const w = $("#conv-warning");
-      w.replaceChildren();
-      if (!st.soffice) {
-        w.append(h("div", { class: "alert warn" },
-          h("strong", null, "LibreOffice nu a fost găsit. "),
-          "Conversia Word/Office → PDF necesită LibreOffice (soffice) instalat; pe Windows se poate folosi și Microsoft Word, dacă este instalat. ",
-          "Descărcați LibreOffice gratuit de pe libreoffice.org și reporniți aplicația."));
+  // =================================================================== MODELUL DE DOCUMENT + VIZUALIZATOR
+  /**
+   * Un singur „document curent”. Toate instrumentele operează pe el; cele care îl
+   * transformă (semnare, editare, comprimare, organizare) îl înlocuiesc și
+   * reîmprospătează vizualizatorul.
+   */
+  const D = {
+    file: null,     // File (PDF curent)
+    info: null,     // rezultat /api/pdf/info
+    page: 0,
+    zoom: "fit",
+    ops: [],        // operații de editare în așteptare (editor + editare text)
+    tool: null,     // instrumentul activ din bara verticală
+    editTool: null, // sub-instrument de editare desen
+    textEditMode: false,
+    listeners: [],  // callback-uri la schimbarea documentului
+  };
+  const onDocChange = (fn) => D.listeners.push(fn);
+  function emitDocChange() { D.listeners.forEach((fn) => { try { fn(); } catch (e) { console.error(e); } }); }
+
+  function pageSize(p) { return (D.info && D.info.page_sizes[p]) || [595, 842]; }
+  const round = (v) => Math.round(v * 100) / 100;
+
+  const viewer = (() => {
+    const stage = $("#viewer-stage");
+    const pv = pageView(stage);
+    let interaction = "none"; // none | sign | point | rect
+    let handlers = {};        // pentru point/rect (editor)
+    let sigEnabled = true;
+    const sigRects = {};
+    let thumbObserver = null;
+
+    function sigDefaultRect(page) {
+      const [W, H] = pageSize(page);
+      const w = 200, hh = 70, m = 40;
+      return [(W - m - w) / W, (H - m - hh) / H, (W - m) / W, (H - m) / H];
+    }
+    function sigRectFor(page) {
+      if (!(page in sigRects)) sigRects[page] = sigDefaultRect(page);
+      return sigRects[page];
+    }
+    function paintSig() {
+      pv.showSel(interaction === "sign" && sigEnabled && D.info ? sigRectFor(D.page) : null, "sig-rect");
+    }
+    function zoomFor() {
+      const [W, H] = pageSize(D.page);
+      const avail = Math.max(240, stage.clientWidth - 36);
+      if (D.zoom === "fit") return Math.round(Math.min(3, Math.max(0.3, avail / W)) * 20) / 20;
+      if (D.zoom === "fit-page") {
+        const availH = Math.max(240, stage.clientHeight - 36);
+        return Math.round(Math.min(3, Math.max(0.3, Math.min(avail / W, availH / H))) * 20) / 20;
       }
-    }).catch((e) => toast(e.message, "err"));
+      return Number(D.zoom);
+    }
 
-    const p2w = dropZone($("#conv-p2w-drop"), { validate: isPdf });
-    const officeExt = /\.(docx?|odt|rtf|txt|xlsx?|ods|csv|pptx?|odp)$/i;
-    const w2p = dropZone($("#conv-w2p-drop"), {
-      accept: ".docx,.doc,.odt,.rtf,.txt,.xlsx,.xls,.ods,.csv,.pptx,.ppt,.odp",
-      title: "Trageți documentul Word / Office aici",
-      sub: "docx, doc, odt, rtf, txt, xlsx, pptx … – sau faceți clic",
-      validate: (f) => officeExt.test(f.name),
-    });
+    function applyMode() {
+      if (interaction === "sign") {
+        pv.setMode(sigEnabled ? "rect" : "none", {
+          onRect: (rect) => { sigRects[D.page] = rect; paintSig(); },
+          onCancel: () => paintSig(),
+        });
+        paintSig();
+      } else if (interaction === "point") {
+        pv.setMode("point", { onPoint: handlers.onPoint });
+        pv.showSel(null);
+      } else if (interaction === "rect") {
+        pv.setMode("rect", { onRect: handlers.onRect });
+        pv.showSel(null);
+      } else {
+        pv.setMode("none");
+        pv.showSel(null);
+      }
+    }
 
-    $("#conv-p2w-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!p2w.file) throw new Error("Selectați fișierul PDF.");
-      const { blob, filename } = await api("/api/convert/pdf-to-word", { body: fd({ file: p2w.file }), as: "blob" });
-      saveBlob(blob, filename || "document.docx");
-      toast("Conversie reușită.", "ok");
-    }));
-    $("#conv-w2p-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!w2p.file) throw new Error("Selectați documentul de convertit.");
-      const { blob, filename } = await api("/api/convert/to-pdf", { body: fd({ file: w2p.file }), as: "blob" });
-      saveBlob(blob, filename || "document.pdf");
-      toast("Conversie reușită.", "ok");
-    }));
-  };
+    function syncPager() {
+      const n = D.info ? D.info.pages : 0;
+      $("#vw-pagecount").textContent = String(n);
+      $("#vw-pagenum").max = String(n);
+      $("#vw-pagenum").value = String(D.page + 1);
+      $("#vw-prev").disabled = D.page <= 0;
+      $("#vw-next").disabled = D.page >= n - 1;
+      $$(".vthumb", $("#viewer-thumbs")).forEach((t, i) => t.classList.toggle("active", i === D.page));
+      const active = $(".vthumb.active", $("#viewer-thumbs"));
+      if (active) active.scrollIntoView({ block: "nearest" });
+    }
 
-  // =================================================================== 4. EDITARE
-  const ed = {
-    blob: null, name: "", info: null, page: 0, zoom: "fit", tool: null, ops: [], view: null,
-    textEditMode: false, _textEditBtn: null,
-    opt: {
-      text: "", size: 12, color: "#000000",
-      rectColor: "#e11d48", fill: false, fillColor: "#fde68a", width: 1.5,
-      note: "", imageB64: null, imageName: "",
-      search: "", replace: "", replacePage: false,
-      rotateAll: false, moveTo: 1, blankAt: 1,
-      meta: null,
-    },
-  };
+    async function render() {
+      if (!D.file || !D.info) return;
+      await pv.load(D.file, D.page, zoomFor());
+      applyMode();
+      renderMarks();
+      syncPager();
+      if (D.textEditMode) renderTextEditOverlay();
+    }
 
+    function renderThumbs() {
+      const box = $("#viewer-thumbs");
+      if (thumbObserver) thumbObserver.disconnect();
+      const file = D.file;
+      const queue = [];
+      let running = 0;
+      const pump = () => {
+        while (running < 2 && queue.length) {
+          const { img, i } = queue.shift();
+          running++;
+          renderPage(file, i, 0.22).then((url) => { img.src = url; }).catch(() => {})
+            .finally(() => { running--; pump(); });
+        }
+      };
+      thumbObserver = new IntersectionObserver((entries) => {
+        entries.forEach((en) => {
+          if (!en.isIntersecting) return;
+          thumbObserver.unobserve(en.target);
+          if (file !== D.file) return;
+          queue.push({ img: $("img", en.target), i: Number(en.target.dataset.i) });
+        });
+        pump();
+      }, { root: box, rootMargin: "400px" });
+      box.replaceChildren(...Array.from({ length: D.info.pages }, (_, i) => {
+        const t = h("div", { class: "vthumb" + (i === D.page ? " active" : ""), "data-i": String(i), onclick: () => api_goPage(i) },
+          h("div", { class: "vti" }, h("img", { alt: `Pagina ${i + 1}` })), h("span", { class: "vtn" }, String(i + 1)));
+        thumbObserver.observe(t);
+        return t;
+      }));
+    }
+
+    function api_goPage(p) {
+      if (!D.info) return;
+      D.page = Math.max(0, Math.min(D.info.pages - 1, p));
+      clearTextEditOverlay();
+      render().catch((e) => toast(e.message, "err"));
+      if (D.tool === "edit") renderToolOptions(); // actualizează formularele dependente de pagină
+    }
+
+    return {
+      get wrap() { return pv.wrap; },
+      async setFile(file, { keepPage = false } = {}) {
+        D.file = file;
+        D.info = await pdfInfo(file);
+        if (!keepPage) D.page = 0;
+        D.page = Math.min(D.page, Math.max(0, D.info.pages - 1));
+        $("#viewer-empty").hidden = true;
+        $("#viewer-doc").hidden = false;
+        $("#cur-file").textContent = file.name;
+        $("#cur-file").title = file.name;
+        $("#download-btn").disabled = false;
+        renderThumbs();
+        updateSigBanner();
+        await render();
+        emitDocChange();
+      },
+      goPage: api_goPage,
+      setZoom(z) { D.zoom = z; return render(); },
+      zoomStep(dir) {
+        const cur = zoomFor();
+        const z = Math.min(3, Math.max(0.3, Math.round((cur + dir * 0.25) * 20) / 20));
+        D.zoom = String(z);
+        $("#vw-zoom").value = [..."0.5,0.75,1,1.5,2".split(",")].includes(String(z)) ? String(z) : $("#vw-zoom").value;
+        return render();
+      },
+      render,
+      setInteraction(mode, hs = {}) { interaction = mode; handlers = hs; applyMode(); },
+      setSigEnabled(on) { sigEnabled = !!on; if (interaction === "sign") applyMode(); },
+      getVisible() {
+        if (!D.info) return null;
+        return { info: D.info, page: D.page, rect: sigRectFor(D.page) };
+      },
+      resetSig() { for (const k of Object.keys(sigRects)) delete sigRects[k]; },
+      setMarks: (l) => pv.setMarks(l),
+      currentZoom: zoomFor,
+    };
+  })();
+
+  function updateSigBanner() {
+    const b = $("#sig-banner");
+    if (!D.info || !D.info.signature_count) { b.hidden = true; return; }
+    const n = D.info.signature_count;
+    b.hidden = false;
+    b.replaceChildren(
+      h("span", { class: "sb-icon", "aria-hidden": "true" }, "✓"),
+      h("span", { class: "sb-text" }, `Document semnat · ${n} semnătur${n === 1 ? "ă" : "i"} electronic${n === 1 ? "ă" : "e"} în document.`),
+      h("button", { class: "btn small", onclick: () => openTool("validate", { run: true }) }, "Panou semnături"));
+  }
+
+  // =================================================================== editor: instrumente de desenare / pagini
   const TOOLS = [
     { id: "add_text", label: "Text", kind: "point" },
     { id: "highlight", label: "Evidențiere", kind: "rect" },
@@ -949,9 +847,13 @@
     { id: "insert_blank", label: "Pagină goală", kind: "form" },
     { id: "set_metadata", label: "Metadate", kind: "form" },
   ];
-
-  function pageSize(p) { return (ed.info && ed.info.page_sizes[p]) || [595, 842]; }
-  const round = (v) => Math.round(v * 100) / 100;
+  const edOpt = {
+    text: "", size: 12, color: "#000000",
+    rectColor: "#e11d48", fill: false, fillColor: "#fde68a", width: 1.5,
+    note: "", imageB64: null, imageName: "",
+    search: "", replace: "", replacePage: false,
+    rotateAll: false, moveTo: 1, blankAt: 1,
+  };
 
   function opText(op) {
     const pg = (p) => `pag. ${p + 1}`;
@@ -974,34 +876,29 @@
     }
   }
 
-  function addOp(op) {
-    ed.ops.push(op);
-    renderOps();
-    renderMarks();
-  }
+  function addOp(op) { D.ops.push(op); renderOps(); renderMarks(); }
 
   function renderOps() {
     const list = $("#ed-ops");
-    list.replaceChildren(...ed.ops.map((op, i) => h("li", null,
+    if (!list) return;
+    list.replaceChildren(...D.ops.map((op, i) => h("li", null,
       h("div", { class: "op-row" },
-        h("span", { class: "link", title: "Mergi la pagină", onclick: () => { if (op.page != null && op.page < ed.info.pages) goPage(op.page); } }, opText(op)),
-        h("button", { class: "x", title: "Elimină", "aria-label": "Elimină", onclick: () => { ed.ops.splice(i, 1); renderOps(); renderMarks(); } }, "×")))));
-    $("#ed-opcount").textContent = String(ed.ops.length);
+        h("span", { class: "link", title: "Mergi la pagină", onclick: () => { if (op.page != null && op.page < D.info.pages) viewer.goPage(op.page); } }, opText(op)),
+        h("button", { class: "x", title: "Elimină", "aria-label": "Elimină", onclick: () => { D.ops.splice(i, 1); renderOps(); renderMarks(); } }, "×")))));
+    const cnt = $("#ed-opcount");
+    if (cnt) cnt.textContent = String(D.ops.length);
   }
 
   function renderMarks() {
-    if (!ed.view) return;
-    const [W, H] = pageSize(ed.page);
+    if (!D.info) return;
+    const [W, H] = pageSize(D.page);
     const marks = [];
-    ed.ops.forEach((op, i) => {
-      if (op.page !== ed.page) return;
-      if (op.rect) {
-        marks.push({ rect: [op.rect[0] / W, op.rect[1] / H, op.rect[2] / W, op.rect[3] / H], cls: op.type, label: `${i + 1}` });
-      } else if (op.x != null) {
-        marks.push({ x: op.x / W, y: op.y / H, label: `${i + 1}. ${op.text.slice(0, 20)}` });
-      }
+    D.ops.forEach((op, i) => {
+      if (op.page !== D.page) return;
+      if (op.rect) marks.push({ rect: [op.rect[0] / W, op.rect[1] / H, op.rect[2] / W, op.rect[3] / H], cls: op.type, label: `${i + 1}` });
+      else if (op.x != null) marks.push({ x: op.x / W, y: op.y / H, label: `${i + 1}. ${op.text.slice(0, 20)}` });
     });
-    ed.view.setMarks(marks);
+    viewer.setMarks(marks);
   }
 
   // ---------------------------------------------------------------- click-to-edit (editare text pe pagină)
@@ -1014,18 +911,18 @@
   }
 
   async function renderTextEditOverlay() {
-    if (!ed.textEditMode || !ed.view || !ed.blob) return;
+    if (!D.textEditMode || !D.file) return;
     const my = ++textEditToken;
-    const page = ed.page;
-    const zoom = editorZoom();
+    const page = D.page;
+    const zoom = viewer.currentZoom();
     let data;
     try {
-      data = await api("/api/pdf/spans", { body: fd({ file: ed.blob, page }) });
+      data = await api("/api/pdf/spans", { body: fd({ file: D.file, page }) });
     } catch (e) {
       if (my === textEditToken) toast(e.message, "err");
       return;
     }
-    if (my !== textEditToken || !ed.textEditMode || ed.page !== page) return;
+    if (my !== textEditToken || !D.textEditMode || D.page !== page) return;
     if (textEditLayer) { textEditLayer.remove(); textEditLayer = null; }
     const layer = h("div", { class: "edit-text-layer" });
     (data.spans || []).forEach((sp) => {
@@ -1035,30 +932,22 @@
       const div = h("div", { class: "edit-span", contenteditable: "true", spellcheck: "false", title: "Faceți clic pentru a rescrie textul" });
       div.textContent = sp.text;
       Object.assign(div.style, {
-        left: (x0 * zoom) + "px",
-        top: (y0 * zoom) + "px",
-        minWidth: w + "px",
-        height: hh + "px",
-        lineHeight: hh + "px",
-        fontSize: (sp.size * zoom) + "px",
-        color: sp.color,
-        fontWeight: sp.bold ? "700" : "400",
-        fontStyle: sp.italic ? "italic" : "normal",
+        left: (x0 * zoom) + "px", top: (y0 * zoom) + "px",
+        minWidth: w + "px", height: hh + "px", lineHeight: hh + "px",
+        fontSize: (sp.size * zoom) + "px", color: sp.color,
+        fontWeight: sp.bold ? "700" : "400", fontStyle: sp.italic ? "italic" : "normal",
       });
       const orig = sp.text;
       let myOp = null;
       div.addEventListener("blur", () => {
         const nt = div.textContent;
         if (myOp) {
-          const idx = ed.ops.indexOf(myOp);
+          const idx = D.ops.indexOf(myOp);
           if (nt === orig) {
-            if (idx >= 0) ed.ops.splice(idx, 1);
+            if (idx >= 0) D.ops.splice(idx, 1);
             myOp = null;
             renderOps(); renderMarks();
-          } else {
-            myOp.text = nt;
-            renderOps(); renderMarks();
-          }
+          } else { myOp.text = nt; renderOps(); renderMarks(); }
           return;
         }
         if (nt === orig) return;
@@ -1067,70 +956,36 @@
       });
       layer.append(div);
     });
-    ed.view.wrap.append(layer);
+    viewer.wrap.append(layer);
     textEditLayer = layer;
   }
 
-  function setTextEdit(on) {
-    ed.textEditMode = !!on;
-    if (ed.textEditMode && ed.tool) { // dezactivează instrumentul de desenare activ
-      ed.tool = null;
-      $$(".tool", $("#ed-tools")).forEach((b) => b.classList.remove("active"));
-      ed.view.setMode("none");
-    }
-    if (ed._textEditBtn) ed._textEditBtn.classList.toggle("active", ed.textEditMode);
-    if (ed.textEditMode) {
-      ed.view.setMode("none");
-      $("#ed-tool-opts").replaceChildren(h("span", { class: "tip" },
-        "Faceți clic pe un text din pagină pentru a-l rescrie direct. Modificările apar în lista de operații și se aplică la „Aplică”."));
-      renderTextEditOverlay();
-    } else {
-      clearTextEditOverlay();
-      renderToolOptions();
-    }
-  }
-
-  function setTool(id) {
-    if (ed.textEditMode) {
-      ed.textEditMode = false;
-      if (ed._textEditBtn) ed._textEditBtn.classList.remove("active");
-      clearTextEditOverlay();
-    }
-    ed.tool = ed.tool === id ? null : id;
-    $$(".tool", $("#ed-tools")).forEach((b) => b.classList.toggle("active", b.dataset.tool === ed.tool));
-    renderToolOptions();
-    const t = TOOLS.find((x) => x.id === ed.tool);
-    if (!t || t.kind === "form") { ed.view.setMode("none"); return; }
-    if (t.kind === "point") ed.view.setMode("point", { onPoint: onEditorPoint });
-    else ed.view.setMode("rect", { onRect: onEditorRect });
-  }
-
   function onEditorPoint(fx, fy) {
-    const [W, H] = pageSize(ed.page);
+    const [W, H] = pageSize(D.page);
     const x = round(fx * W), y = round(fy * H);
-    if (ed.tool === "add_text") {
-      const text = ed.opt.text.trim() ? ed.opt.text : window.prompt("Textul de adăugat:", "");
+    if (D.editTool === "add_text") {
+      const text = edOpt.text.trim() ? edOpt.text : window.prompt("Textul de adăugat:", "");
       if (!text) return;
-      addOp({ type: "add_text", page: ed.page, x, y, text, size: Number(ed.opt.size) || 12, color: ed.opt.color });
-    } else if (ed.tool === "note") {
-      const text = ed.opt.note.trim() ? ed.opt.note : window.prompt("Textul notei:", "");
+      addOp({ type: "add_text", page: D.page, x, y, text, size: Number(edOpt.size) || 12, color: edOpt.color });
+    } else if (D.editTool === "note") {
+      const text = edOpt.note.trim() ? edOpt.note : window.prompt("Textul notei:", "");
       if (!text) return;
-      addOp({ type: "note", page: ed.page, x, y, text });
+      addOp({ type: "note", page: D.page, x, y, text });
     }
   }
 
   function onEditorRect(fr, sel) {
-    const [W, H] = pageSize(ed.page);
+    const [W, H] = pageSize(D.page);
     const rect = [round(fr[0] * W), round(fr[1] * H), round(fr[2] * W), round(fr[3] * H)];
     if (sel) sel.hidden = true;
-    switch (ed.tool) {
-      case "highlight": addOp({ type: "highlight", page: ed.page, rect }); break;
-      case "rect": addOp({ type: "rect", page: ed.page, rect, color: ed.opt.rectColor, fill: ed.opt.fill ? ed.opt.fillColor : null, width: Number(ed.opt.width) || 1 }); break;
-      case "whiteout": addOp({ type: "whiteout", page: ed.page, rect }); break;
-      case "redact": addOp({ type: "redact", page: ed.page, rect }); break;
+    switch (D.editTool) {
+      case "highlight": addOp({ type: "highlight", page: D.page, rect }); break;
+      case "rect": addOp({ type: "rect", page: D.page, rect, color: edOpt.rectColor, fill: edOpt.fill ? edOpt.fillColor : null, width: Number(edOpt.width) || 1 }); break;
+      case "whiteout": addOp({ type: "whiteout", page: D.page, rect }); break;
+      case "redact": addOp({ type: "redact", page: D.page, rect }); break;
       case "image":
-        if (!ed.opt.imageB64) { toast("Alegeți întâi imaginea din bara de opțiuni.", "warn"); return; }
-        addOp({ type: "image", page: ed.page, rect, image_b64: ed.opt.imageB64, _name: ed.opt.imageName });
+        if (!edOpt.imageB64) { toast("Alegeți întâi imaginea din bara de opțiuni.", "warn"); return; }
+        addOp({ type: "image", page: D.page, rect, image_b64: edOpt.imageB64, _name: edOpt.imageName });
         break;
       default: break;
     }
@@ -1139,17 +994,46 @@
   function optField(label, input) { return h("label", { class: "field" }, label, input); }
   function bindOpt(input, key, conv = (v) => v) {
     const isCheck = input.type === "checkbox";
-    if (isCheck) input.checked = !!ed.opt[key]; else input.value = ed.opt[key];
-    input.addEventListener(isCheck ? "change" : "input", () => { ed.opt[key] = isCheck ? input.checked : conv(input.value); });
+    if (isCheck) input.checked = !!edOpt[key]; else input.value = edOpt[key];
+    input.addEventListener(isCheck ? "change" : "input", () => { edOpt[key] = isCheck ? input.checked : conv(input.value); });
     return input;
   }
   const tip = (t) => h("span", { class: "tip" }, t);
 
+  function setEditTool(id) {
+    if (D.textEditMode) setTextEdit(false);
+    D.editTool = D.editTool === id ? null : id;
+    $$(".tool", $("#ed-tools") || document.createElement("div")).forEach((b) => b.classList.toggle("active", b.dataset.tool === D.editTool));
+    renderToolOptions();
+    const t = TOOLS.find((x) => x.id === D.editTool);
+    if (!t || t.kind === "form") { viewer.setInteraction("none"); return; }
+    if (t.kind === "point") viewer.setInteraction("point", { onPoint: onEditorPoint });
+    else viewer.setInteraction("rect", { onRect: onEditorRect });
+  }
+
+  function setTextEdit(on) {
+    D.textEditMode = !!on;
+    if (D.textEditMode && D.editTool) { D.editTool = null; viewer.setInteraction("none"); }
+    const btn = $("#ed-texttoggle");
+    if (btn) btn.classList.toggle("active", D.textEditMode);
+    if (D.textEditMode) {
+      viewer.setInteraction("none");
+      const box = $("#ed-tool-opts");
+      if (box) box.replaceChildren(tip("Faceți clic pe un text din pagină pentru a-l rescrie direct. Modificările apar în lista de operații și se aplică la „Aplică”."));
+      renderTextEditOverlay();
+    } else {
+      clearTextEditOverlay();
+      renderToolOptions();
+    }
+  }
+
   function renderToolOptions() {
     const box = $("#ed-tool-opts");
+    if (!box) return;
     box.replaceChildren();
-    const pnum = ed.page + 1;
-    switch (ed.tool) {
+    if (D.textEditMode) { box.append(tip("Faceți clic pe un text din pagină pentru a-l rescrie.")); return; }
+    const pnum = D.page + 1;
+    switch (D.editTool) {
       case "add_text":
         box.append(
           optField("Text", bindOpt(h("input", { type: "text", placeholder: "Textul de inserat" }), "text")),
@@ -1174,13 +1058,13 @@
           const f = inp.files[0];
           if (!f) return;
           try {
-            ed.opt.imageB64 = await fileToBase64(f);
-            ed.opt.imageName = f.name;
+            edOpt.imageB64 = await fileToBase64(f);
+            edOpt.imageName = f.name;
             toast("Imagine pregătită. Trageți pe pagină zona în care va fi plasată.", "ok");
           } catch (e) { toast(e.message, "err"); }
         });
         box.append(optField("Imagine (PNG/JPG)", inp),
-          tip(ed.opt.imageName ? `Imagine curentă: ${ed.opt.imageName}. Trageți pe pagină zona dorită.` : "Alegeți imaginea, apoi trageți pe pagină zona dorită."));
+          tip(edOpt.imageName ? `Imagine curentă: ${edOpt.imageName}. Trageți pe pagină zona dorită.` : "Alegeți imaginea, apoi trageți pe pagină zona dorită."));
         break;
       }
       case "note":
@@ -1189,17 +1073,17 @@
         break;
       case "replace_text": {
         const s = bindOpt(h("input", { type: "text", placeholder: "Text căutat" }), "search");
-        const r = bindOpt(h("input", { type: "text", placeholder: "Text nou" }), "replace");
-        box.append(optField("Caută", s), optField("Înlocuiește cu", r),
+        const rr = bindOpt(h("input", { type: "text", placeholder: "Text nou" }), "replace");
+        box.append(optField("Caută", s), optField("Înlocuiește cu", rr),
           h("label", { class: "check" }, bindOpt(h("input", { type: "checkbox" }), "replacePage"), `Doar pagina curentă (${pnum})`),
           h("button", { class: "btn small primary", onclick: () => {
-            if (!ed.opt.search) { toast("Introduceți textul căutat.", "warn"); return; }
-            addOp({ type: "replace_text", search: ed.opt.search, replace: ed.opt.replace, page: ed.opt.replacePage ? ed.page : null });
+            if (!edOpt.search) { toast("Introduceți textul căutat.", "warn"); return; }
+            addOp({ type: "replace_text", search: edOpt.search, replace: edOpt.replace, page: edOpt.replacePage ? D.page : null });
           } }, "Adaugă"));
         break;
       }
       case "rotate": {
-        const rot = (angle) => addOp({ type: "rotate", page: ed.opt.rotateAll ? null : ed.page, angle });
+        const rot = (angle) => addOp({ type: "rotate", page: edOpt.rotateAll ? null : D.page, angle });
         box.append(
           h("label", { class: "check" }, bindOpt(h("input", { type: "checkbox" }), "rotateAll"), "Toate paginile"),
           h("button", { class: "btn small", onclick: () => rot(90) }, "↻ 90° dreapta"),
@@ -1210,35 +1094,35 @@
       }
       case "delete_page":
         box.append(h("button", { class: "btn small danger", onclick: () => {
-          if (ed.info.pages <= 1) { toast("Documentul are o singură pagină.", "warn"); return; }
-          addOp({ type: "delete_page", page: ed.page });
+          if (D.info.pages <= 1) { toast("Documentul are o singură pagină.", "warn"); return; }
+          addOp({ type: "delete_page", page: D.page });
         } }, `Șterge pagina ${pnum}`), tip("Navigați la pagina dorită, apoi apăsați butonul."));
         break;
       case "move_page": {
-        ed.opt.moveTo = Math.min(ed.opt.moveTo, ed.info.pages);
-        const inp = bindOpt(h("input", { type: "number", min: "1", max: String(ed.info.pages), class: "num" }), "moveTo", Number);
+        edOpt.moveTo = Math.min(edOpt.moveTo, D.info.pages);
+        const inp = bindOpt(h("input", { type: "number", min: "1", max: String(D.info.pages), class: "num" }), "moveTo", Number);
         box.append(optField(`Mută pagina ${pnum} pe poziția`, inp),
           h("button", { class: "btn small primary", onclick: () => {
-            const to = Math.round(ed.opt.moveTo) - 1;
-            if (!(to >= 0 && to < ed.info.pages)) { toast(`Poziția trebuie să fie între 1 și ${ed.info.pages}.`, "warn"); return; }
-            if (to === ed.page) { toast("Pagina se află deja pe această poziție.", "warn"); return; }
-            addOp({ type: "move_page", from: ed.page, to });
+            const to = Math.round(edOpt.moveTo) - 1;
+            if (!(to >= 0 && to < D.info.pages)) { toast(`Poziția trebuie să fie între 1 și ${D.info.pages}.`, "warn"); return; }
+            if (to === D.page) { toast("Pagina se află deja pe această poziție.", "warn"); return; }
+            addOp({ type: "move_page", from: D.page, to });
           } }, "Adaugă"));
         break;
       }
       case "insert_blank": {
-        ed.opt.blankAt = ed.page + 2;
-        const inp = bindOpt(h("input", { type: "number", min: "1", max: String(ed.info.pages + 1), class: "num" }), "blankAt", Number);
+        edOpt.blankAt = D.page + 2;
+        const inp = bindOpt(h("input", { type: "number", min: "1", max: String(D.info.pages + 1), class: "num" }), "blankAt", Number);
         box.append(optField("Inserează pagină goală pe poziția", inp),
           h("button", { class: "btn small primary", onclick: () => {
-            const at = Math.round(ed.opt.blankAt) - 1;
-            if (!(at >= 0 && at <= ed.info.pages)) { toast(`Poziția trebuie să fie între 1 și ${ed.info.pages + 1}.`, "warn"); return; }
+            const at = Math.round(edOpt.blankAt) - 1;
+            if (!(at >= 0 && at <= D.info.pages)) { toast(`Poziția trebuie să fie între 1 și ${D.info.pages + 1}.`, "warn"); return; }
             addOp({ type: "insert_blank", at });
           } }, "Adaugă"), tip(`Implicit: după pagina curentă (${pnum}).`));
         break;
       }
       case "set_metadata": {
-        const md = (ed.info && ed.info.metadata) || {};
+        const md = (D.info && D.info.metadata) || {};
         const fields = {};
         const mk = (key, label) => { fields[key] = h("input", { type: "text", value: md[key] || "" }); return optField(label, fields[key]); };
         box.append(mk("title", "Titlu"), mk("author", "Autor"), mk("subject", "Subiect"), mk("keywords", "Cuvinte cheie"),
@@ -1254,308 +1138,528 @@
     }
   }
 
-  function editorZoom() {
-    if (ed.zoom !== "fit") return Number(ed.zoom);
-    const [W] = pageSize(ed.page);
-    const avail = Math.max(200, $("#ed-stage").clientWidth - 40);
-    return Math.round(Math.min(3, Math.max(0.5, avail / W)) * 20) / 20;
-  }
-
-  async function goPage(p) {
-    if (!ed.info) return;
-    ed.page = Math.max(0, Math.min(ed.info.pages - 1, p));
-    $("#ed-pagenum").value = String(ed.page + 1);
-    $$(".thumb", $("#ed-thumbs")).forEach((t, i) => t.classList.toggle("active", i === ed.page));
-    const active = $(".thumb.active", $("#ed-thumbs"));
-    if (active) active.scrollIntoView({ block: "nearest" });
-    renderMarks();
-    if (TOOLS.find((t) => t.id === ed.tool && t.kind === "form")) renderToolOptions();
-    clearTextEditOverlay();
-    try {
-      await ed.view.load(ed.blob, ed.page, editorZoom());
-    } catch (e) { toast(e.message, "err"); }
-    if (ed.textEditMode) renderTextEditOverlay();
-  }
-
-  let thumbObserver = null;
-  function renderThumbs() {
-    const box = $("#ed-thumbs");
-    if (thumbObserver) thumbObserver.disconnect();
-    const blob = ed.blob;
-    const queue = [];
-    let running = 0;
-    const pump = () => {
-      while (running < 2 && queue.length) {
-        const { img, i } = queue.shift();
-        running++;
-        renderPage(blob, i, 0.25).then((url) => { img.src = url; }).catch(() => { /* ignorăm */ })
-          .finally(() => { running--; pump(); });
-      }
-    };
-    thumbObserver = new IntersectionObserver((entries) => {
-      entries.forEach((en) => {
-        if (!en.isIntersecting) return;
-        thumbObserver.unobserve(en.target);
-        if (blob !== ed.blob) return;
-        queue.push({ img: $("img", en.target), i: Number(en.target.dataset.i) });
-      });
-      pump();
-    }, { root: box, rootMargin: "300px" });
-    box.replaceChildren(...Array.from({ length: ed.info.pages }, (_, i) => {
-      const t = h("div", { class: "thumb" + (i === ed.page ? " active" : ""), "data-i": String(i), onclick: () => goPage(i) },
-        h("div", { class: "ti" }, h("img", { alt: `Pagina ${i + 1}` })), String(i + 1));
-      thumbObserver.observe(t);
-      return t;
-    }));
-  }
-
-  async function loadEditorDoc(blob, name, keepPage = false) {
-    const info = await pdfInfo(blob);
-    ed.blob = blob;
-    ed.name = name;
-    ed.info = info;
-    ed.ops = [];
-    if (!keepPage) ed.page = 0;
-    ed.page = Math.min(ed.page, info.pages - 1);
-    $("#ed-load-card").hidden = true;
-    $("#ed-workspace").hidden = false;
-    $("#ed-filename").textContent = name;
-    $("#ed-pages").textContent = `· ${info.pages} pagin${info.pages === 1 ? "ă" : "i"}${info.encrypted ? " · criptat" : ""}`;
-    $("#ed-pagecount").textContent = String(info.pages);
-    $("#ed-pagenum").max = String(info.pages);
-    const warn = $("#ed-sigwarn");
-    warn.replaceChildren();
-    if (info.signature_count > 0) {
-      warn.append(h("div", { class: "alert warn" },
-        h("strong", null, `Documentul conține ${info.signature_count} semnătur${info.signature_count === 1 ? "ă" : "i"} electronic${info.signature_count === 1 ? "ă" : "e"}. `),
-        "Orice modificare va invalida semnăturile existente. Pentru a adăuga o semnătură nouă folosiți secțiunea „Semnare”."));
-    }
-    renderOps();
-    renderThumbs();
-    renderToolOptions();
-    await goPage(ed.page);
-  }
-
   async function applyEdits(download) {
-    if (!ed.ops.length) throw new Error("Nu există operații de aplicat.");
-    const ops = ed.ops.map((op) => {
-      const o = { ...op };
-      delete o._name;
-      delete o._orig;
-      return o;
-    });
-    const { blob, filename } = await api("/api/pdf/edit", { body: fd({ file: ed.blob, ops: JSON.stringify(ops) }), as: "blob" });
+    if (!D.ops.length) throw new Error("Nu există operații de aplicat.");
+    const ops = D.ops.map((op) => { const o = { ...op }; delete o._name; delete o._orig; return o; });
+    const { blob, filename } = await api("/api/pdf/edit", { body: fd({ file: D.file, ops: JSON.stringify(ops) }), as: "blob" });
     if (download) saveBlob(blob, filename || "document_editat.pdf");
-    const file = new File([blob], ed.name, { type: "application/pdf" });
-    await loadEditorDoc(file, ed.name, true);
+    const name = D.file.name;
+    const file = new File([blob], name, { type: "application/pdf" });
+    D.ops = [];
+    clearTextEditOverlay();
+    await viewer.setFile(file, { keepPage: true });
+    renderOps();
     toast(download ? "Modificările au fost aplicate și documentul descărcat." : "Modificările au fost aplicate. Puteți continua editarea.", "ok");
   }
 
-  sectionInit.editare = () => {
-    // sub-tab-uri
-    $$("#ed-subtabs .subtab").forEach((b) => b.addEventListener("click", () => {
-      $$("#ed-subtabs .subtab").forEach((x) => x.classList.toggle("active", x === b));
-      $$("#sec-editare .subpane").forEach((p) => { p.hidden = p.dataset.sub !== b.dataset.sub; });
+  // =================================================================== PANOURI (dreapta)
+  const rpBody = () => $("#rp-body");
+  const panelCache = {};
+  let esignSetPfx = null; // setată de panoul E-Sign activ, folosită de dialogul de certificat de test
+
+  function buildEsign() {
+    const host = h("div", { class: "panel esign-panel" });
+    const formHost = h("div", { id: "sign-form-host", class: "card" });
+    const successHost = h("div", { id: "sign-success-host" });
+    const signBtn = h("button", { class: "btn primary block", id: "sign-btn" }, "Semnează");
+    const testLink = h("a", { href: "#", class: "link small", id: "testcert-link" }, "Generează certificat de test");
+
+    host.append(
+      h("p", { class: "lead" }, "Semnați electronic PDF-ul deschis (PAdES). Documentul primește implicit o semnătură vizibilă; trageți un dreptunghi pe pagina din vizualizator pentru a o poziționa."),
+      formHost,
+      h("div", { class: "actions" }, signBtn, testLink),
+      successHost);
+
+    const form = createSignForm(formHost, {
+      getPdf: async () => D.file,
+      getVisible: () => viewer.getVisible(),
+      onVisibleToggle: (on) => viewer.setSigEnabled(on),
+      visibleDefault: true,
+    });
+
+    function hideSuccess() { successHost.replaceChildren(); signBtn.hidden = false; }
+    function showSuccess(blob, filename) {
+      const name = filename || "document_semnat.pdf";
+      signBtn.hidden = true;
+      const infoLine = h("div", { class: "muted small" }, "Se analizează documentul semnat…");
+      const valOut = h("div", { class: "sign-success-val" });
+      const panel = h("div", { class: "card sign-success" },
+        h("div", { class: "sign-success-head" },
+          h("span", { class: "sign-success-check", "aria-hidden": "true" }, "✓"),
+          h("h2", null, "Document semnat")),
+        infoLine,
+        h("div", { class: "actions" },
+          h("button", { class: "btn primary", type: "button", onclick: () => saveBlob(blob, name) }, "Descarcă documentul semnat"),
+          h("button", { class: "btn", type: "button", onclick: (e) => busy(e.currentTarget, async () => {
+            valOut.replaceChildren(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se validează semnătura…"));
+            try {
+              const sigs = await api("/api/validate", { body: fd({ file: D.file }) });
+              renderValidation(valOut, sigs, D.file.name);
+            } catch (err) { valOut.replaceChildren(); toast(err.message || "Validarea a eșuat.", "err"); }
+          }) }, "Validează semnătura"),
+          h("button", { class: "btn", type: "button", onclick: hideSuccess }, "Semnează din nou")),
+        valOut);
+      successHost.replaceChildren(panel);
+      pdfInfo(D.file).then((inf) => {
+        const n = inf.signature_count;
+        infoLine.textContent = `${name} · ${n} semnătur${n === 1 ? "ă" : "i"} în document.`;
+      }).catch(() => { infoLine.textContent = name; });
+    }
+
+    signBtn.addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+      const f = fd({ file: D.file });
+      form.appendTo(f);
+      const { blob, filename } = await api("/api/sign", { body: f, as: "blob" });
+      const name = D.file.name.replace(/\.pdf$/i, "") + "_semnat.pdf";
+      const outName = filename || name;
+      const file = new File([blob], outName, { type: "application/pdf" });
+      viewer.resetSig();
+      await viewer.setFile(file, { keepPage: true });
+      form.pdfChanged();
+      showSuccess(blob, outName);
+      toast("Documentul a fost semnat.", "ok");
     }));
 
-    ed.view = pageView($("#ed-stage"));
-    $("#ed-tools").append(...TOOLS.map((t) => h("button", { class: "tool", "data-tool": t.id, onclick: () => setTool(t.id) }, t.label)));
-    const textEditBtn = h("button", { class: "tool tool-text-edit", "data-role": "text-edit-toggle", title: "Editează textul direct pe pagină", onclick: () => setTextEdit(!ed.textEditMode) }, "✎ Editează textul");
-    $("#ed-tools").append(textEditBtn);
-    ed._textEditBtn = textEditBtn;
-
-    dropZone($("#ed-drop"), {
-      validate: isPdf, title: "Trageți aici PDF-ul de editat",
-      onChange: (files) => {
-        if (!files[0]) return;
-        const zone = $("#ed-drop .drop");
-        zone.classList.add("over");
-        loadEditorDoc(files[0], files[0].name).catch((e) => toast(e.message, "err")).finally(() => zone.classList.remove("over"));
-      },
+    const dlg = $("#testcert-dialog");
+    testLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      esignSetPfx = (file, pass) => form.setPfx(file, pass);
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
     });
 
-    $("#ed-prev").addEventListener("click", () => goPage(ed.page - 1));
-    $("#ed-next").addEventListener("click", () => goPage(ed.page + 1));
-    $("#ed-pagenum").addEventListener("change", (e) => goPage(Number(e.target.value) - 1));
-    $("#ed-zoom").addEventListener("change", (e) => { ed.zoom = e.target.value === "fit" ? "fit" : Number(e.target.value); goPage(ed.page); });
-    $("#ed-clear-ops").addEventListener("click", () => { ed.ops = []; renderOps(); renderMarks(); });
-    $("#ed-apply").addEventListener("click", (e) => busy(e.currentTarget, () => applyEdits(false)));
-    $("#ed-apply-dl").addEventListener("click", (e) => busy(e.currentTarget, () => applyEdits(true)));
-    $("#ed-close").addEventListener("click", () => {
-      if (ed.ops.length && !window.confirm("Aveți operații neaplicate. Închideți documentul?")) return;
-      ed.blob = null; ed.info = null; ed.ops = [];
-      ed.textEditMode = false;
-      if (ed._textEditBtn) ed._textEditBtn.classList.remove("active");
-      clearTextEditOverlay();
-      $("#ed-workspace").hidden = true;
-      $("#ed-load-card").hidden = false;
-    });
-    document.addEventListener("keydown", (e) => {
-      if ($("#sec-editare").hidden || !ed.info || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
-      if (e.key === "ArrowRight" || e.key === "PageDown") goPage(ed.page + 1);
-      if (e.key === "ArrowLeft" || e.key === "PageUp") goPage(ed.page - 1);
-      if (e.key === "Escape" && ed.tool) setTool(ed.tool);
-    });
-
-    initMerge();
-    initSplit();
-    initCompress();
-    initText();
-  };
-
-  function initMerge() {
-    const files = [];
-    const list = $("#merge-list");
-    const render = () => {
-      list.replaceChildren(...files.map((f, i) => h("li", null,
-        h("strong", null, `${i + 1}.`), h("span", { class: "fn" }, `${f.name} (${fmtSize(f.size)})`),
-        h("button", { class: "btn small", disabled: i === 0, title: "Mută în sus", onclick: () => { [files[i - 1], files[i]] = [files[i], files[i - 1]]; render(); } }, "↑"),
-        h("button", { class: "btn small", disabled: i === files.length - 1, title: "Mută în jos", onclick: () => { [files[i + 1], files[i]] = [files[i], files[i + 1]]; render(); } }, "↓"),
-        h("button", { class: "btn small danger", title: "Elimină", onclick: () => { files.splice(i, 1); render(); } }, "×"))));
+    return {
+      el: host, mode: "sign", needsDoc: true,
+      show() { hideSuccess(); viewer.setInteraction("sign"); viewer.setSigEnabled($(`[data-role="visible"]`, formHost).checked); },
+      docChanged() { form.pdfChanged(); },
+      _setPfx: (file, pass) => form.setPfx(file, pass),
     };
-    const dz = dropZone($("#merge-drop"), {
-      multiple: true, validate: isPdf, title: "Trageți PDF-urile aici",
-      onChange: (arr) => { files.push(...arr); render(); dz.clear(); },
+  }
+
+  function buildValidate() {
+    const host = h("div", { class: "panel" });
+    const rootsHost = h("div");
+    const out = h("div", { id: "val-results" });
+    const btn = h("button", { class: "btn primary block", id: "val-btn" }, "Validează");
+    host.append(
+      h("p", { class: "lead" }, "Verificați integritatea și încrederea semnăturilor din documentul deschis."),
+      h("details", { class: "mt" },
+        h("summary", null, "Certificate rădăcină de încredere suplimentare (opțional)"),
+        h("p", { class: "hint" }, "De exemplu certificatul CA al furnizorului (.cer, .crt, .pem, .der)."),
+        rootsHost),
+      h("div", { class: "actions" }, btn), out);
+    const roots = dropZone(rootsHost, { multiple: true, accept: ".cer,.crt,.pem,.der,.p7b", title: "Trageți certificatele rădăcină aici" });
+
+    async function run() {
+      if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+      const f = fd({ file: D.file });
+      roots.files.forEach((r) => f.append("roots", r, r.name));
+      out.replaceChildren(h("div", { class: "loading" }, h("span", { class: "spinner" }), "Se validează semnăturile…"));
+      try {
+        const sigs = await api("/api/validate", { body: f });
+        renderValidation(out, sigs, D.file.name);
+      } catch (err) { out.replaceChildren(); throw err; }
+    }
+    btn.addEventListener("click", (e) => busy(e.currentTarget, run));
+    return { el: host, mode: "none", needsDoc: true, show(opts) { if (opts && opts.run) busy(btn, run); }, docChanged() { out.replaceChildren(); } };
+  }
+
+  function buildEditText() {
+    const host = h("div", { class: "panel" });
+    const toggle = h("button", { class: "btn primary block", id: "ed-texttoggle" }, "✎ Activează editarea textului");
+    const opsBox = editorOpsBlock();
+    host.append(
+      h("p", { class: "lead" }, "Faceți clic pe orice text din pagină și rescrieți-l direct, ca în Acrobat. Modificările se adună în listă și se aplică la „Aplică”."),
+      toggle,
+      h("div", { class: "tool-options", id: "ed-tool-opts" }),
+      opsBox);
+    toggle.addEventListener("click", () => {
+      setTextEdit(!D.textEditMode);
+      toggle.textContent = D.textEditMode ? "✓ Editarea textului activă (clic pentru a opri)" : "✎ Activează editarea textului";
     });
-    $("#merge-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+    return {
+      el: host, mode: "none", needsDoc: true,
+      show() { renderOps(); if (D.textEditMode) renderTextEditOverlay(); },
+      docChanged() { renderOps(); toggle.textContent = "✎ Activează editarea textului"; },
+    };
+  }
+
+  function editorOpsBlock() {
+    return h("div", { class: "ops-panel" },
+      h("h3", null, "Operații în așteptare ", h("span", { class: "badge", id: "ed-opcount" }, "0")),
+      h("ol", { id: "ed-ops", class: "ops-list" }),
+      h("div", { class: "actions" },
+        h("button", { class: "btn small", id: "ed-clear-ops", onclick: () => { D.ops = []; renderOps(); renderMarks(); } }, "Golește lista"),
+        h("button", { class: "btn", id: "ed-apply", onclick: (e) => busy(e.currentTarget, () => applyEdits(false)) }, "Aplică"),
+        h("button", { class: "btn primary", id: "ed-apply-dl", onclick: (e) => busy(e.currentTarget, () => applyEdits(true)) }, "Aplică și descarcă")),
+      h("p", { class: "hint" }, "Operațiile se aplică în ordine și reîmprospătează vizualizatorul. Operațiile pe pagini (ștergere, mutare, inserare) schimbă numerotarea pentru operațiile ulterioare."));
+  }
+
+  function buildEdit() {
+    const host = h("div", { class: "panel" });
+    const tools = h("div", { class: "toolbar", id: "ed-tools" });
+    tools.append(...TOOLS.map((t) => h("button", { class: "tool", "data-tool": t.id, onclick: () => setEditTool(t.id) }, t.label)));
+    host.append(
+      h("p", { class: "lead" }, "Adăugați text, evidențieri, forme, note, imagini, redactări sau operații pe pagini. Desenați direct pe pagina din vizualizator."),
+      tools,
+      h("div", { class: "tool-options", id: "ed-tool-opts" }),
+      editorOpsBlock());
+    return {
+      el: host, mode: "none", needsDoc: true,
+      show() { renderOps(); renderToolOptions(); if (D.editTool) { const t = TOOLS.find((x) => x.id === D.editTool); if (t && t.kind === "point") viewer.setInteraction("point", { onPoint: onEditorPoint }); else if (t && t.kind === "rect") viewer.setInteraction("rect", { onRect: onEditorRect }); } },
+      docChanged() { renderOps(); renderToolOptions(); },
+    };
+  }
+
+  function buildExportWord() {
+    const host = h("div", { class: "panel" });
+    host.append(
+      h("p", { class: "lead" }, "Convertește documentul PDF deschis într-un fișier Word (.docx) editabil."),
+      h("div", { class: "actions" },
+        h("button", { class: "btn primary block", onclick: (e) => busy(e.currentTarget, async () => {
+          if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+          const { blob, filename } = await api("/api/convert/pdf-to-word", { body: fd({ file: D.file }), as: "blob" });
+          saveBlob(blob, filename || "document.docx");
+          toast("Conversie reușită. Fișierul Word a fost descărcat.", "ok");
+        }) }, "Convertește în Word")));
+    return { el: host, mode: "none", needsDoc: true, show() {}, docChanged() {} };
+  }
+
+  function buildCreatePdf() {
+    const host = h("div", { class: "panel" });
+    const warn = h("div");
+    const dzHost = h("div");
+    host.append(
+      h("p", { class: "lead" }, "Creează un PDF dintr-un document Word sau Office. Rezultatul devine documentul curent din vizualizator."),
+      warn, dzHost,
+      h("div", { class: "actions" }, h("button", { class: "btn primary block", id: "w2p-btn" }, "Creează PDF")));
+    const officeExt = /\.(docx?|odt|rtf|txt|xlsx?|ods|csv|pptx?|odp)$/i;
+    const dz = dropZone(dzHost, {
+      accept: ".docx,.doc,.odt,.rtf,.txt,.xlsx,.xls,.ods,.csv,.pptx,.ppt,.odp",
+      title: "Trageți documentul Word / Office aici",
+      sub: "docx, doc, odt, rtf, txt, xlsx, pptx … – sau faceți clic",
+      validate: (f) => officeExt.test(f.name),
+    });
+    api("/api/convert/status").then((st) => {
+      if (!st.soffice) warn.replaceChildren(h("div", { class: "alert warn" },
+        h("strong", null, "LibreOffice nu a fost găsit. "),
+        "Conversia Office → PDF necesită LibreOffice (soffice); pe Windows se poate folosi și Microsoft Word. Descărcați de pe libreoffice.org și reporniți aplicația."));
+    }).catch(() => {});
+    $("#w2p-btn", host).addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      if (!dz.file) throw new Error("Selectați documentul de convertit.");
+      const { blob, filename } = await api("/api/convert/to-pdf", { body: fd({ file: dz.file }), as: "blob" });
+      const name = filename || "document.pdf";
+      saveBlob(blob, name);
+      const file = new File([blob], name, { type: "application/pdf" });
+      await viewer.setFile(file);
+      toast("PDF creat și deschis în vizualizator.", "ok");
+    }));
+    return { el: host, mode: "none", needsDoc: false, show() {}, docChanged() {} };
+  }
+
+  function buildCombine() {
+    const host = h("div", { class: "panel" });
+    const dzHost = h("div");
+    const list = h("ol", { class: "file-list", id: "merge-list" });
+    host.append(
+      h("p", { class: "lead" }, "Adăugați mai multe PDF-uri și stabiliți ordinea. Documentul combinat devine documentul curent."),
+      dzHost, list,
+      h("div", { class: "actions" }, h("button", { class: "btn primary block", id: "merge-btn" }, "Combină")));
+    const files = [];
+    const render = () => list.replaceChildren(...files.map((f, i) => h("li", null,
+      h("strong", null, `${i + 1}.`), h("span", { class: "fn" }, `${f.name} (${fmtSize(f.size)})`),
+      h("button", { class: "btn small", disabled: i === 0, title: "Mută în sus", onclick: () => { [files[i - 1], files[i]] = [files[i], files[i - 1]]; render(); } }, "↑"),
+      h("button", { class: "btn small", disabled: i === files.length - 1, title: "Mută în jos", onclick: () => { [files[i + 1], files[i]] = [files[i], files[i + 1]]; render(); } }, "↓"),
+      h("button", { class: "btn small danger", title: "Elimină", onclick: () => { files.splice(i, 1); render(); } }, "×"))));
+    const dz = dropZone(dzHost, { multiple: true, validate: isPdf, title: "Trageți PDF-urile aici", onChange: (arr) => { files.push(...arr); render(); dz.clear(); } });
+    // dacă există un document deschis, oferă-l ca prim fișier
+    $("#merge-btn", host).addEventListener("click", (e) => busy(e.currentTarget, async () => {
       if (files.length < 2) throw new Error("Adăugați cel puțin două fișiere PDF.");
       const f = new FormData();
       files.forEach((x) => f.append("files", x, x.name));
       const { blob, filename } = await api("/api/pdf/merge", { body: f, as: "blob" });
-      saveBlob(blob, filename || "combinat.pdf");
-      toast("Fișierele au fost combinate.", "ok");
+      const name = filename || "combinat.pdf";
+      saveBlob(blob, name);
+      const file = new File([blob], name, { type: "application/pdf" });
+      await viewer.setFile(file);
+      toast("Fișierele au fost combinate și deschise în vizualizator.", "ok");
     }));
+    return {
+      el: host, mode: "none", needsDoc: false,
+      show() { if (D.file && !files.some((x) => x.name === D.file.name)) { files.unshift(D.file); render(); } },
+      docChanged() {},
+    };
   }
 
-  function initSplit() {
-    const dz = dropZone($("#split-drop"), { validate: isPdf });
-    $("#split-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!dz.file) throw new Error("Selectați fișierul PDF.");
-      const ranges = $("#split-ranges").value.trim();
+  function buildOrganize() {
+    const host = h("div", { class: "panel" });
+    const rangesInp = h("input", { type: "text", id: "split-ranges", placeholder: "ex. 1-3,4,5-end" });
+    host.append(
+      h("p", { class: "lead" }, "Împărțiți documentul în mai multe fișiere (ZIP) sau reorganizați paginile."),
+      h("div", { class: "card" },
+        h("h3", null, "Împarte în fișiere"),
+        h("label", { class: "field" }, "Intervale de pagini", rangesInp),
+        h("p", { class: "hint" }, "Fiecare interval devine un fișier separat; rezultatul este o arhivă ZIP. „end” = ultima pagină."),
+        h("div", { class: "actions" }, h("button", { class: "btn primary", id: "split-btn" }, "Împarte"))),
+      h("div", { class: "card" },
+        h("h3", null, "Reorganizează paginile"),
+        h("p", { class: "hint" }, "Rotire, ștergere, mutare sau inserare de pagini, aplicate pe documentul curent."),
+        h("div", { class: "actions org-ops" },
+          h("button", { class: "btn small", onclick: () => addOp({ type: "rotate", page: null, angle: 90 }) }, "↻ Rotește tot 90°"),
+          h("button", { class: "btn small", onclick: () => { if (D.info.pages <= 1) { toast("Documentul are o singură pagină.", "warn"); return; } addOp({ type: "delete_page", page: D.page }); } }, "Șterge pagina curentă"),
+          h("button", { class: "btn small", onclick: () => addOp({ type: "insert_blank", at: D.page + 1 }) }, "Pagină goală după cea curentă")),
+        editorOpsBlock()));
+    $("#split-btn", host).addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+      const ranges = rangesInp.value.trim();
       if (!ranges) throw new Error("Introduceți intervalele de pagini, de ex. 1-3,4,5-end.");
-      const { blob, filename } = await api("/api/pdf/split", { body: fd({ file: dz.file, ranges }), as: "blob" });
+      const { blob, filename } = await api("/api/pdf/split", { body: fd({ file: D.file, ranges }), as: "blob" });
       saveBlob(blob, filename || "impartit.zip");
       toast("Documentul a fost împărțit (arhivă ZIP).", "ok");
     }));
+    return { el: host, mode: "none", needsDoc: true, show() { renderOps(); }, docChanged() { renderOps(); } };
   }
 
-  function initCompress() {
-    const dz = dropZone($("#compress-drop"), { validate: isPdf });
-    $("#compress-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!dz.file) throw new Error("Selectați fișierul PDF.");
-      const { blob, filename } = await api("/api/pdf/compress", { body: fd({ file: dz.file }), as: "blob" });
+  function buildCompress() {
+    const host = h("div", { class: "panel" });
+    const result = h("div", { id: "compress-result" });
+    host.append(
+      h("p", { class: "lead" }, "Reduceți dimensiunea documentului PDF deschis. Rezultatul devine documentul curent."),
+      h("div", { class: "actions" }, h("button", { class: "btn primary block", id: "compress-btn" }, "Comprimă")), result);
+    $("#compress-btn", host).addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+      const before = D.file.size;
+      const { blob, filename } = await api("/api/pdf/compress", { body: fd({ file: D.file }), as: "blob" });
       saveBlob(blob, filename || "comprimat.pdf");
-      const before = dz.file.size, after = blob.size;
+      const after = blob.size;
       const pct = before ? Math.round((1 - after / before) * 100) : 0;
-      $("#compress-result").replaceChildren(h("div", { class: "alert " + (pct > 0 ? "ok" : "warn") + " mt" },
+      const name = D.file.name;
+      const file = new File([blob], name, { type: "application/pdf" });
+      await viewer.setFile(file, { keepPage: true });
+      result.replaceChildren(h("div", { class: "alert " + (pct > 0 ? "ok" : "warn") + " mt" },
         `Dimensiune: ${fmtSize(before)} → ${fmtSize(after)}` + (pct > 0 ? ` (−${pct}%)` : " (documentul era deja optimizat)")));
+      toast("Documentul a fost comprimat.", "ok");
     }));
+    return { el: host, mode: "none", needsDoc: true, show() { result.replaceChildren(); }, docChanged() { result.replaceChildren(); } };
   }
 
-  function initText() {
-    const dz = dropZone($("#text-drop"), { validate: isPdf });
-    const out = $("#text-out");
-    $("#text-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      if (!dz.file) throw new Error("Selectați fișierul PDF.");
-      const res = await api("/api/pdf/text", { body: fd({ file: dz.file }) });
+  function buildExtract() {
+    const host = h("div", { class: "panel" });
+    const out = h("textarea", { id: "text-out", class: "text-out", readonly: true, placeholder: "Textul extras va apărea aici." });
+    const copyBtn = h("button", { class: "btn", id: "text-copy", disabled: true }, "Copiază");
+    const saveBtn = h("button", { class: "btn", id: "text-save", disabled: true }, "Salvează .txt");
+    host.append(
+      h("p", { class: "lead" }, "Extrageți textul din documentul PDF deschis."),
+      h("div", { class: "actions" }, h("button", { class: "btn primary", id: "text-btn" }, "Extrage"), copyBtn, saveBtn),
+      out);
+    $("#text-btn", host).addEventListener("click", (e) => busy(e.currentTarget, async () => {
+      if (!D.file) throw new Error("Deschideți întâi un document PDF.");
+      const res = await api("/api/pdf/text", { body: fd({ file: D.file }) });
       out.value = res.text || "";
-      $("#text-copy").disabled = $("#text-save").disabled = !out.value;
+      copyBtn.disabled = saveBtn.disabled = !out.value;
       if (!out.value.trim()) toast("Documentul nu conține text extractibil (posibil scanat).", "warn");
     }));
-    $("#text-copy").addEventListener("click", async () => {
+    copyBtn.addEventListener("click", async () => {
       try { await navigator.clipboard.writeText(out.value); toast("Text copiat.", "ok"); }
       catch (_) { out.select(); document.execCommand("copy"); toast("Text copiat.", "ok"); }
     });
-    $("#text-save").addEventListener("click", () => {
-      const stem = (dz.file && dz.file.name.replace(/\.pdf$/i, "")) || "text";
+    saveBtn.addEventListener("click", () => {
+      const stem = (D.file && D.file.name.replace(/\.pdf$/i, "")) || "text";
       saveBlob(new Blob([out.value], { type: "text/plain;charset=utf-8" }), stem + ".txt");
+    });
+    return { el: host, mode: "none", needsDoc: true, show() {}, docChanged() { out.value = ""; copyBtn.disabled = saveBtn.disabled = true; } };
+  }
+
+  const BUILDERS = {
+    esign: buildEsign, validate: buildValidate, edittext: buildEditText, edit: buildEdit,
+    export_word: buildExportWord, create_pdf: buildCreatePdf, combine: buildCombine,
+    organize: buildOrganize, compress: buildCompress, extract: buildExtract,
+  };
+
+  function getPanel(id) {
+    if (!panelCache[id]) {
+      panelCache[id] = BUILDERS[id]();
+      onDocChange(() => { try { panelCache[id].docChanged(); } catch (_) {} });
+    }
+    return panelCache[id];
+  }
+
+  // =================================================================== BARA DE INSTRUMENTE (rail) + navigare
+  const ICONS = {
+    pen: '<path d="M4 20h4L19 9l-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 6l4 4" stroke="currentColor" stroke-width="2"/>',
+    check: '<path d="M4 7l5 5 11-11" transform="translate(0 4)" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+    text: '<path d="M5 5h14M12 5v14M8 19h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    tools: '<path d="M14 7a4 4 0 00-5.2 5.2L3 18v3h3l5.8-5.8A4 4 0 0017 10l-3 3-2-2 3-3a4 4 0 00-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+    word: '<rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8l1.5 8L12 10l2.5 6L16 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    create: '<rect x="5" y="3" width="14" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v6M9 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    combine: '<rect x="3" y="4" width="11" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="7" width="11" height="14" rx="2" fill="var(--surface)" stroke="currentColor" stroke-width="2"/>',
+    pages: '<rect x="4" y="3" width="10" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 8h3v13H9v-3" fill="none" stroke="currentColor" stroke-width="2"/>',
+    compress: '<path d="M12 3v7m0 0l-3-3m3 3l3-3M12 21v-7m0 0l-3 3m3-3l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    extract: '<path d="M5 4h9l5 5v11H5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 13h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    flow: '<circle cx="6" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="12" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 7l8 4M8 17l8-4" stroke="currentColor" stroke-width="2"/>',
+    gear: '<circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M19.5 4.5l-2 2M6.5 17.5l-2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  };
+  function icon(name) {
+    const span = h("span", { class: "ti-ico" });
+    span.innerHTML = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+    return span;
+  }
+
+  const RAIL = [
+    { id: "esign", label: "Semnează electronic", group: "semnare", icon: "pen" },
+    { id: "validate", label: "Validează semnături", group: "semnare", icon: "check" },
+    { id: "edittext", label: "Editează textul", group: "editeaza", icon: "text" },
+    { id: "edit", label: "Instrumente de editare", group: "editeaza", icon: "tools" },
+    { id: "export_word", label: "Export în Word", group: "conversie", icon: "word" },
+    { id: "create_pdf", label: "Creează PDF din Word/Office", group: "conversie", icon: "create" },
+    { id: "combine", label: "Combină fișiere", group: "conversie", icon: "combine" },
+    { id: "organize", label: "Organizează / Împarte pagini", group: "editeaza", icon: "pages" },
+    { id: "compress", label: "Comprimă", group: "editeaza", icon: "compress" },
+    { id: "extract", label: "Extrage text", group: "editeaza", icon: "extract" },
+    { id: "fluxuri", label: "Fluxuri de semnare", group: "semnare", icon: "flow", screen: "fluxuri" },
+    { id: "setari", label: "Setări", group: null, icon: "gear", screen: "setari" },
+  ];
+
+  let activeTab = "all";
+
+  function buildRail() {
+    const rail = $("#toolrail");
+    rail.replaceChildren(...RAIL.map((t) => {
+      const item = h("button", { class: "tool-item", "data-tool": t.id, "data-group": t.group || "", title: t.label },
+        icon(t.icon), h("span", { class: "ti-label" }, t.label));
+      item.addEventListener("click", () => openTool(t.id));
+      return item;
+    }));
+  }
+
+  function filterRail() {
+    $$(".tool-item", $("#toolrail")).forEach((it) => {
+      const g = it.dataset.group;
+      const q = ($("#tool-search").value || "").trim().toLowerCase();
+      const tabOk = activeTab === "all" || activeTab === "citeste" || g === activeTab || it.dataset.tool === "setari";
+      const searchOk = !q || it.textContent.toLowerCase().includes(q);
+      it.hidden = !(tabOk && searchOk);
     });
   }
 
-  // =================================================================== 5. FLUXURI
-  const WF_STATUS = {
-    draft: ["Ciornă", ""], in_progress: ["În desfășurare", "info"],
-    completed: ["Finalizat", "ok"], cancelled: ["Anulat", "err"],
-  };
-  const SIGNER_STATUS = {
-    pending: ["În așteptare", ""], sent: ["Trimis spre semnare", "info"],
-    signed: ["Semnat", "ok"], rejected: ["Respins", "err"],
-  };
-  const EVENT_KIND = {
-    created: "creat", sent: "trimis", signed: "semnat", warning: "avertisment", error: "eroare",
-    rejected: "respins", completed: "finalizat", cancelled: "anulat", reminder: "reamintire",
-  };
+  function setTab(tab) {
+    activeTab = tab;
+    $$(".menutab", $("#menutabs")).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+    filterRail();
+    if (tab === "citeste") closePanel();
+  }
+
+  function closePanel() {
+    $("#rightpanel").hidden = true;
+    document.body.classList.remove("panel-open");
+    D.tool = null;
+    $$(".tool-item", $("#toolrail")).forEach((b) => b.classList.remove("active"));
+    $("#vw-tool-label").textContent = "";
+    viewer.setInteraction("none");
+    if (D.textEditMode) setTextEdit(false);
+  }
+
+  function openScreen(name) {
+    $$(".screen").forEach((s) => { s.hidden = s.id !== "screen-" + name; });
+    document.body.classList.add("screen-open");
+    if (name === "fluxuri") initFluxuri();
+    if (name === "setari") initSetari();
+  }
+  function closeScreens() { $$(".screen").forEach((s) => s.hidden = true); document.body.classList.remove("screen-open"); }
+
+  function openTool(id, opts) {
+    const meta = RAIL.find((t) => t.id === id);
+    if (!meta) return;
+    if (meta.screen) {
+      $$(".tool-item", $("#toolrail")).forEach((b) => b.classList.toggle("active", b.dataset.tool === id));
+      openScreen(meta.screen);
+      return;
+    }
+    closeScreens();
+    const panel = getPanel(id);
+    if (panel.needsDoc && !D.file) {
+      $("#rightpanel").hidden = false;
+      document.body.classList.add("panel-open");
+      $("#rp-title").textContent = meta.label;
+      rpBody().replaceChildren(h("div", { class: "panel" },
+        h("div", { class: "alert warn" }, "Acest instrument necesită un document deschis."),
+        h("div", { class: "actions" }, h("button", { class: "btn primary", onclick: () => $("#open-btn").click() }, "Deschide un PDF"))));
+      $$(".tool-item", $("#toolrail")).forEach((b) => b.classList.toggle("active", b.dataset.tool === id));
+      D.tool = id;
+      return;
+    }
+    D.tool = id;
+    $$(".tool-item", $("#toolrail")).forEach((b) => b.classList.toggle("active", b.dataset.tool === id));
+    $("#rightpanel").hidden = false;
+    document.body.classList.add("panel-open");
+    $("#rp-title").textContent = meta.label;
+    rpBody().replaceChildren(panel.el);
+    $("#vw-tool-label").textContent = meta.label;
+    viewer.setInteraction(panel.mode || "none");
+    try { panel.show(opts); } catch (e) { console.error(e); }
+  }
+
+  // =================================================================== FLUXURI (ecran dedicat)
+  const WF_STATUS = { draft: ["Ciornă", ""], in_progress: ["În desfășurare", "info"], completed: ["Finalizat", "ok"], cancelled: ["Anulat", "err"] };
+  const SIGNER_STATUS = { pending: ["În așteptare", ""], sent: ["Trimis spre semnare", "info"], signed: ["Semnat", "ok"], rejected: ["Respins", "err"] };
+  const EVENT_KIND = { created: "creat", sent: "trimis", signed: "semnat", warning: "avertisment", error: "eroare", rejected: "respins", completed: "finalizat", cancelled: "anulat", reminder: "reamintire" };
   const statusBadge = (map, s) => { const [t, c] = map[s] || [s || "?", ""]; return h("span", { class: "badge " + c }, t); };
 
   let wfSigners = [];
   let wfDetailId = null;
+  let wfInited = false;
 
-  sectionInit.fluxuri = () => {
-    const drop = dropZone($("#wf-drop"), { validate: isPdf, title: "Trageți aici PDF-ul de semnat" });
-    const signersEl = $("#wf-signers");
-
-    function renderSigners() {
-      signersEl.replaceChildren(...wfSigners.map((s, i) => {
-        const name = h("input", { type: "text", placeholder: "Nume", value: s.name });
-        const email = h("input", { type: "email", placeholder: "e-mail", value: s.email });
-        name.addEventListener("input", () => { s.name = name.value; });
-        email.addEventListener("input", () => { s.email = email.value; });
-        return h("li", null, name, email,
-          h("button", { class: "btn small", type: "button", disabled: i === 0, title: "Mută în sus", onclick: () => { [wfSigners[i - 1], wfSigners[i]] = [wfSigners[i], wfSigners[i - 1]]; renderSigners(); } }, "↑"),
-          h("button", { class: "btn small", type: "button", disabled: i === wfSigners.length - 1, title: "Mută în jos", onclick: () => { [wfSigners[i + 1], wfSigners[i]] = [wfSigners[i], wfSigners[i + 1]]; renderSigners(); } }, "↓"),
-          h("button", { class: "btn small danger", type: "button", title: "Elimină", onclick: () => { wfSigners.splice(i, 1); renderSigners(); } }, "×"));
+  function initFluxuri() {
+    if (!wfInited) {
+      wfInited = true;
+      const drop = dropZone($("#wf-drop"), { validate: isPdf, title: "Trageți aici PDF-ul de semnat" });
+      const signersEl = $("#wf-signers");
+      function renderSigners() {
+        signersEl.replaceChildren(...wfSigners.map((s, i) => {
+          const name = h("input", { type: "text", placeholder: "Nume", value: s.name });
+          const email = h("input", { type: "email", placeholder: "e-mail", value: s.email });
+          name.addEventListener("input", () => { s.name = name.value; });
+          email.addEventListener("input", () => { s.email = email.value; });
+          return h("li", null, name, email,
+            h("button", { class: "btn small", type: "button", disabled: i === 0, title: "Mută în sus", onclick: () => { [wfSigners[i - 1], wfSigners[i]] = [wfSigners[i], wfSigners[i - 1]]; renderSigners(); } }, "↑"),
+            h("button", { class: "btn small", type: "button", disabled: i === wfSigners.length - 1, title: "Mută în jos", onclick: () => { [wfSigners[i + 1], wfSigners[i]] = [wfSigners[i], wfSigners[i + 1]]; renderSigners(); } }, "↓"),
+            h("button", { class: "btn small danger", type: "button", title: "Elimină", onclick: () => { wfSigners.splice(i, 1); renderSigners(); } }, "×"));
+        }));
+      }
+      function resetCreate() { wfSigners = [{ name: "", email: "" }]; $("#wf-name").value = ""; $("#wf-message").value = ""; drop.clear(); renderSigners(); }
+      resetCreate();
+      $("#wf-add-signer").addEventListener("click", () => { wfSigners.push({ name: "", email: "" }); renderSigners(); });
+      $("#wf-new").addEventListener("click", () => { $("#wf-create").hidden = false; $("#wf-name").focus(); });
+      $("#wf-create-cancel").addEventListener("click", () => { $("#wf-create").hidden = true; resetCreate(); });
+      $("#wf-refresh").addEventListener("click", (e) => busy(e.currentTarget, loadWorkflows));
+      $("#wf-inbox").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+        const box = $("#wf-inbox-result");
+        const results = await api("/api/workflows/check-inbox", { method: "POST" });
+        renderInboxResults(box, results);
+        await loadWorkflows();
+      }));
+      $("#wf-create-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
+        const name = $("#wf-name").value.trim();
+        if (!name) throw new Error("Introduceți denumirea fluxului.");
+        if (!drop.file) throw new Error("Selectați documentul PDF.");
+        const signers = wfSigners.map((s) => ({ name: s.name.trim(), email: s.email.trim() })).filter((s) => s.email || s.name);
+        if (!signers.length) throw new Error("Adăugați cel puțin un semnatar.");
+        const bad = signers.find((s) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email));
+        if (bad) throw new Error(`Adresă de e-mail invalidă: „${bad.email || bad.name}”.`);
+        const wf = await api("/api/workflows", { body: fd({ file: drop.file, name, signers: JSON.stringify(signers), message: $("#wf-message").value, start: $("#wf-start").checked ? "true" : "false" }) });
+        toast("Fluxul a fost creat" + ($("#wf-start").checked ? " și pornit." : "."), "ok");
+        $("#wf-create").hidden = true;
+        resetCreate();
+        await loadWorkflows();
+        openWorkflow(wf.id);
       }));
     }
-    function resetCreate() {
-      wfSigners = [{ name: "", email: "" }];
-      $("#wf-name").value = "";
-      $("#wf-message").value = "";
-      drop.clear();
-      renderSigners();
-    }
-    resetCreate();
-
-    $("#wf-add-signer").addEventListener("click", () => { wfSigners.push({ name: "", email: "" }); renderSigners(); });
-    $("#wf-new").addEventListener("click", () => { $("#wf-create").hidden = false; $("#wf-name").focus(); });
-    $("#wf-create-cancel").addEventListener("click", () => { $("#wf-create").hidden = true; resetCreate(); });
-    $("#wf-refresh").addEventListener("click", (e) => busy(e.currentTarget, loadWorkflows));
-    $("#wf-inbox").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      const box = $("#wf-inbox-result");
-      const results = await api("/api/workflows/check-inbox", { method: "POST" });
-      renderInboxResults(box, results);
-      await loadWorkflows();
-    }));
-
-    $("#wf-create-btn").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      const name = $("#wf-name").value.trim();
-      if (!name) throw new Error("Introduceți denumirea fluxului.");
-      if (!drop.file) throw new Error("Selectați documentul PDF.");
-      const signers = wfSigners.map((s) => ({ name: s.name.trim(), email: s.email.trim() })).filter((s) => s.email || s.name);
-      if (!signers.length) throw new Error("Adăugați cel puțin un semnatar.");
-      const bad = signers.find((s) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email));
-      if (bad) throw new Error(`Adresă de e-mail invalidă: „${bad.email || bad.name}”.`);
-      const wf = await api("/api/workflows", {
-        body: fd({ file: drop.file, name, signers: JSON.stringify(signers), message: $("#wf-message").value, start: $("#wf-start").checked ? "true" : "false" }),
-      });
-      toast("Fluxul a fost creat" + ($("#wf-start").checked ? " și pornit." : "."), "ok");
-      $("#wf-create").hidden = true;
-      resetCreate();
-      await loadWorkflows();
-      openWorkflow(wf.id);
-    }));
-
-    loadWorkflows().catch((e) => toast(e.message, "err"));
-  };
-  sectionInit["fluxuri:show"] = () => {
     if (wfDetailId == null) loadWorkflows().catch((e) => toast(e.message, "err"));
-  };
+  }
 
   function renderInboxResults(box, results) {
     box.replaceChildren();
-    if (!results || !results.length) {
-      box.append(h("div", { class: "alert" }, "Nu există mesaje noi pentru fluxurile de semnare."));
-      return;
-    }
+    if (!results || !results.length) { box.append(h("div", { class: "alert" }, "Nu există mesaje noi pentru fluxurile de semnare.")); return; }
     box.append(h("div", { class: "card" },
       h("h3", null, `Rezultat verificare inbox (${results.length} mesaj${results.length === 1 ? "" : "e"})`),
       h("ul", { class: "signer-steps" }, results.map((r) => h("li", null,
@@ -1564,8 +1668,7 @@
           h("div", null, h("strong", null, `Flux #${r.workflow_id}`), ` – ${r.subject || ""}`),
           h("div", { class: "hint" }, `De la: ${r.sender || "?"}${r.filename ? " · " + r.filename : ""}`),
           r.ok && r.report ? h("div", null, r.report.message || "") : null,
-          r.ok && r.report && r.report.warnings && r.report.warnings.length
-            ? h("ul", { class: "hint" }, r.report.warnings.map((w) => h("li", null, w))) : null,
+          r.ok && r.report && r.report.warnings && r.report.warnings.length ? h("ul", { class: "hint" }, r.report.warnings.map((w) => h("li", null, w))) : null,
           r.error ? h("div", { class: "hint", style: { color: "var(--err)" } }, r.error) : null)))),
       h("button", { class: "btn small", onclick: () => box.replaceChildren() }, "Închide")));
   }
@@ -1573,10 +1676,7 @@
   async function loadWorkflows() {
     const box = $("#wf-list");
     const list = await api("/api/workflows");
-    if (!list.length) {
-      box.replaceChildren(h("div", { class: "card empty" }, "Nu există fluxuri de semnare. Apăsați „Flux nou” pentru a crea unul."));
-      return;
-    }
+    if (!list.length) { box.replaceChildren(h("div", { class: "card empty" }, "Nu există fluxuri de semnare. Apăsați „Flux nou” pentru a crea unul.")); return; }
     box.replaceChildren(h("div", { class: "card table-wrap", style: { padding: "0" } },
       h("table", { class: "wf-table" },
         h("thead", null, h("tr", null, ["#", "Denumire", "Stare", "Progres", "Semnatar curent", "Actualizat"].map((t) => h("th", null, t)))),
@@ -1589,12 +1689,7 @@
           h("td", null, fmtDate(w.updated_at || w.created_at))))))));
   }
 
-  function showWfList() {
-    wfDetailId = null;
-    $("#wf-detail-view").hidden = true;
-    $("#wf-list-view").hidden = false;
-    loadWorkflows().catch((e) => toast(e.message, "err"));
-  }
+  function showWfList() { wfDetailId = null; $("#wf-detail-view").hidden = true; $("#wf-list-view").hidden = false; loadWorkflows().catch((e) => toast(e.message, "err")); }
 
   async function openWorkflow(id) {
     try {
@@ -1603,7 +1698,7 @@
       renderWorkflowDetail(wf);
       $("#wf-list-view").hidden = true;
       $("#wf-detail-view").hidden = false;
-      window.scrollTo(0, 0);
+      $("#screen-fluxuri").scrollTop = 0;
     } catch (e) { toast(e.message, "err"); }
   }
 
@@ -1632,7 +1727,6 @@
       }
       return docBlob;
     };
-
     const actBtn = (label, cls, fn) => h("button", { class: "btn " + (cls || ""), onclick: (e) => busy(e.currentTarget, fn) }, label);
 
     const header = h("div", null,
@@ -1640,23 +1734,10 @@
       h("div", { class: "title-row" },
         h("h1", null, wf.name, " ", statusBadge(WF_STATUS, wf.status)),
         h("div", { class: "row-actions" },
-          actBtn("Descarcă documentul curent", "", async () => {
-            const { blob, filename } = await api(`/api/workflows/${wf.id}/document`, { as: "blob" });
-            saveBlob(blob, filename || wf.filename);
-          }),
-          wf.status === "draft" ? actBtn("Pornește fluxul", "primary", async () => {
-            refresh(await api(`/api/workflows/${wf.id}/start`, { method: "POST" }));
-            toast("Fluxul a fost pornit.", "ok");
-          }) : null,
-          active ? actBtn("Trimite reamintire", "", async () => {
-            refresh(await api(`/api/workflows/${wf.id}/remind`, { method: "POST" }));
-            toast("Reamintirea a fost trimisă.", "ok");
-          }) : null,
-          wf.status === "draft" || active ? actBtn("Anulează fluxul", "danger", async () => {
-            if (!window.confirm("Sigur anulați acest flux de semnare?")) return;
-            refresh(await api(`/api/workflows/${wf.id}/cancel`, { method: "POST" }));
-            toast("Fluxul a fost anulat.", "ok");
-          }) : null,
+          actBtn("Descarcă documentul curent", "", async () => { const { blob, filename } = await api(`/api/workflows/${wf.id}/document`, { as: "blob" }); saveBlob(blob, filename || wf.filename); }),
+          wf.status === "draft" ? actBtn("Pornește fluxul", "primary", async () => { refresh(await api(`/api/workflows/${wf.id}/start`, { method: "POST" })); toast("Fluxul a fost pornit.", "ok"); }) : null,
+          active ? actBtn("Trimite reamintire", "", async () => { refresh(await api(`/api/workflows/${wf.id}/remind`, { method: "POST" })); toast("Reamintirea a fost trimisă.", "ok"); }) : null,
+          wf.status === "draft" || active ? actBtn("Anulează fluxul", "danger", async () => { if (!window.confirm("Sigur anulați acest flux de semnare?")) return; refresh(await api(`/api/workflows/${wf.id}/cancel`, { method: "POST" })); toast("Fluxul a fost anulat.", "ok"); }) : null,
           actBtn("Reîmprospătează", "", async () => refresh(await api(`/api/workflows/${wf.id}`))))),
       h("p", { class: "hint" }, `Document: ${wf.filename || ""}` + (wf.tag ? ` · Etichetă e-mail: ${wf.tag}` : "") + (wf.created_at ? ` · Creat: ${fmtDate(wf.created_at)}` : "")),
       wf.message ? h("p", null, h("em", null, wf.message)) : null);
@@ -1673,7 +1754,6 @@
     const blocks = [header, reportBox, signers];
 
     if (active) {
-      // încărcare manuală
       const upCard = h("div", { class: "card" }, h("h2", null, "Încarcă documentul semnat"),
         h("p", { class: "hint" }, "Dacă semnatarul curent v-a trimis PDF-ul semnat pe altă cale, încărcați-l aici. Va fi validat și trimis mai departe."));
       const upHost = h("div");
@@ -1686,7 +1766,6 @@
         toast(res.report && res.report.message ? res.report.message : "Document acceptat.", "ok");
       })));
 
-      // semnez eu acum
       const cur = (wf.signers || [])[wf.current_step];
       const signCard = h("div", { class: "card" }, h("h2", null, "Semnez eu acum"),
         h("p", { class: "hint" }, `Dacă dvs. sunteți semnatarul curent${cur ? ` (${cur.name || ""} <${cur.email}>)` : ""}, semnați documentul direct din aplicație.`));
@@ -1722,17 +1801,18 @@
     v.replaceChildren(...blocks);
   }
 
-  // =================================================================== 6. SETĂRI
+  // =================================================================== SETĂRI (ecran dedicat)
   const PRESETS = {
     gmail: { smtp_host: "smtp.gmail.com", smtp_port: 465, smtp_tls: "ssl", imap_host: "imap.gmail.com", imap_port: 993 },
     outlook: { smtp_host: "smtp.office365.com", smtp_port: 587, smtp_tls: "starttls", imap_host: "outlook.office365.com", imap_port: 993 },
     yahoo: { smtp_host: "smtp.mail.yahoo.com", smtp_port: 465, smtp_tls: "ssl", imap_host: "imap.mail.yahoo.com", imap_port: 993 },
   };
-
-  sectionInit.setari = () => {
+  let setariInited = false;
+  function initSetari() {
+    if (setariInited) return;
+    setariInited = true;
     const form = $("#settings-form");
     const el = (n) => form.elements.namedItem(n);
-
     api("/api/settings").then((s) => {
       for (const [k, v] of Object.entries(s)) {
         const input = el(k);
@@ -1741,20 +1821,15 @@
         else input.value = v == null ? "" : String(v);
       }
     }).catch((e) => toast(e.message, "err"));
-
     $("#set-preset").addEventListener("change", (e) => {
       const p = PRESETS[e.target.value];
       if (!p) return;
       for (const [k, v] of Object.entries(p)) el(k).value = String(v);
       const user = el("smtp_user").value || el("from_email").value;
-      if (user) {
-        if (!el("imap_user").value) el("imap_user").value = user;
-        if (!el("from_email").value) el("from_email").value = user;
-      }
+      if (user) { if (!el("imap_user").value) el("imap_user").value = user; if (!el("from_email").value) el("from_email").value = user; }
       if (!el("imap_folder").value) el("imap_folder").value = "INBOX";
       toast("Presetare aplicată. Completați utilizatorul și parola de aplicație, apoi salvați.", "info");
     });
-
     const collect = () => {
       const out = {};
       for (const input of form.elements) {
@@ -1766,29 +1841,95 @@
       return out;
     };
     const save = () => api("/api/settings", { body: collect() });
-
-    $("#settings-save").addEventListener("click", (e) => busy(e.currentTarget, async () => {
-      await save();
-      toast("Setările au fost salvate.", "ok");
-    }));
-    const test = (btn, url) => busy(btn, async () => {
-      await save();
-      const r = await api(url, { method: "POST" });
-      toast(r.message || (r.ok ? "Conexiune reușită." : "Conexiunea a eșuat."), r.ok ? "ok" : "err");
-    });
+    $("#settings-save").addEventListener("click", (e) => busy(e.currentTarget, async () => { await save(); toast("Setările au fost salvate.", "ok"); }));
+    const test = (btn, url) => busy(btn, async () => { await save(); const r = await api(url, { method: "POST" }); toast(r.message || (r.ok ? "Conexiune reușită." : "Conexiunea a eșuat."), r.ok ? "ok" : "err"); });
     $("#test-smtp").addEventListener("click", (e) => test(e.currentTarget, "/api/settings/test-smtp"));
     $("#test-imap").addEventListener("click", (e) => test(e.currentTarget, "/api/settings/test-imap"));
-  };
+  }
+
+  // =================================================================== deschidere document
+  const pdfPicker = h("input", { type: "file", accept: ".pdf,application/pdf", style: { display: "none" } });
+  document.body.append(pdfPicker);
+  pdfPicker.addEventListener("change", () => {
+    const f = pdfPicker.files[0];
+    pdfPicker.value = "";
+    if (f && isPdf(f)) openDocument(f);
+    else if (f) toast("Selectați un fișier PDF.", "warn");
+  });
+
+  async function openDocument(file) {
+    try {
+      closeScreens();
+      D.ops = [];
+      viewer.resetSig();
+      clearTextEditOverlay();
+      await viewer.setFile(file);
+      toast("Document deschis.", "ok");
+      if (D.tool) openTool(D.tool); // re-randează panoul curent pentru noul document
+    } catch (e) { toast(e.message, "err"); }
+  }
 
   // =================================================================== pornire
-  $("#menu-btn").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
-  document.addEventListener("click", (e) => {
-    const sb = $("#sidebar");
-    if (sb.classList.contains("open") && !sb.contains(e.target) && e.target !== $("#menu-btn")) sb.classList.remove("open");
+  buildRail();
+
+  dropZone($("#empty-drop"), { validate: isPdf, title: "Trageți aici PDF-ul", sub: "sau faceți clic pentru a alege", onChange: (files) => { if (files[0]) openDocument(files[0]); } });
+
+  // dialog certificat de test (partajat de panoul E-Sign)
+  $("#testcert-form").addEventListener("submit", (e) => {
+    const submitter = e.submitter;
+    if (!submitter || submitter.value !== "ok") return;
+    e.preventDefault();
+    const form = e.currentTarget;
+    busy($("#testcert-go"), async () => {
+      const data = Object.fromEntries(new FormData(form));
+      const { blob, filename } = await api("/api/sign/test-certificate", { body: fd(data), as: "blob" });
+      const name = filename || "certificat_test.pfx";
+      saveBlob(blob, name);
+      const file = new File([blob], name, { type: "application/x-pkcs12" });
+      if (esignSetPfx && esignSetPfx(file, data.password)) {
+        toast("Certificatul de test a fost descărcat și selectat în formularul de semnare.", "ok");
+      } else {
+        toast("Certificatul de test a fost descărcat.", "ok");
+      }
+      $("#testcert-dialog").close();
+    });
   });
-  window.addEventListener("hashchange", () => showSection(location.hash.slice(1)));
+
+  $("#open-btn").addEventListener("click", () => pdfPicker.click());
+  $("#download-btn").addEventListener("click", () => { if (D.file) saveBlob(D.file, D.file.name); });
+
+  $("#rail-toggle").addEventListener("click", () => { document.body.classList.toggle("rail-collapsed"); });
+  $("#rp-close").addEventListener("click", closePanel);
+  $("#app-home").addEventListener("click", (e) => { e.preventDefault(); closePanel(); closeScreens(); setTab("all"); });
+
+  $$(".menutab", $("#menutabs")).forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+  $("#tool-search").addEventListener("input", filterRail);
+
+  // vizualizator – bară de instrumente
+  $("#vw-prev").addEventListener("click", () => viewer.goPage(D.page - 1));
+  $("#vw-next").addEventListener("click", () => viewer.goPage(D.page + 1));
+  $("#vw-pagenum").addEventListener("change", (e) => viewer.goPage(Number(e.target.value) - 1));
+  $("#vw-zoom").addEventListener("change", (e) => viewer.setZoom(e.target.value).catch((err) => toast(err.message, "err")));
+  $("#vw-zoomin").addEventListener("click", () => viewer.zoomStep(1).catch(() => {}));
+  $("#vw-zoomout").addEventListener("click", () => viewer.zoomStep(-1).catch(() => {}));
+  $("#thumbs-toggle").addEventListener("click", () => { document.body.classList.toggle("thumbs-hidden"); setTimeout(() => viewer.render().catch(() => {}), 60); });
+
+  // navigare la taste în vizualizator
+  document.addEventListener("keydown", (e) => {
+    if (!D.info || !document.body.classList.contains("panel-open") && D.tool) { /* permite oricum */ }
+    if (!D.info) return;
+    const a = document.activeElement;
+    if (a && (/INPUT|TEXTAREA|SELECT/.test(a.tagName) || a.isContentEditable)) return;
+    if (!$("#viewer-doc").hidden && $$(".screen").every((s) => s.hidden)) {
+      if (e.key === "ArrowRight" || e.key === "PageDown") viewer.goPage(D.page + 1);
+      if (e.key === "ArrowLeft" || e.key === "PageUp") viewer.goPage(D.page - 1);
+      if (e.key === "Escape" && D.editTool) setEditTool(D.editTool);
+    }
+  });
+
   // previne deschiderea fișierelor plasate în afara zonelor de încărcare
   window.addEventListener("dragover", (e) => e.preventDefault());
   window.addEventListener("drop", (e) => e.preventDefault());
-  showSection(location.hash.slice(1) || "semnare");
+
+  setTab("all");
 })();
