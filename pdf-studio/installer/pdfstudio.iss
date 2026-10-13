@@ -1,4 +1,4 @@
-; Inno Setup - instalator pentru PDF Studio.
+﻿; Inno Setup - instalator pentru PDF Studio.
 ; Produce PDF-Studio-Setup.exe: instalează aplicația și pune scurtături
 ; pe desktop și în meniul Start, exact ca orice program Windows.
 ; Se compilează cu Inno Setup (ISCC.exe) - vezi build_installer.bat.
@@ -28,10 +28,10 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
-; Folosim limba implicită (întotdeauna prezentă la orice instalare Inno Setup).
-; Romanian.isl poate lipsi din instalarea prin winget și ar opri compilarea.
-; Numele aplicației și al scurtăturilor rămân oricum în română (vezi mai jos).
-Name: "default"; MessagesFile: "compiler:Default.isl"
+; Fișierul de limbă română e livrat chiar lângă acest script (installer\Romanian.isl),
+; ca să nu depindem de instalarea Inno Setup (prin winget lipsea Romanian.isl).
+; Declară LanguageCodePage=1250, deci diacriticele din asistent apar corect.
+Name: "ro"; MessagesFile: "Romanian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Creează o scurtătură pe desktop"; GroupDescription: "Scurtături:"
