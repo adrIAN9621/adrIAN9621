@@ -113,13 +113,19 @@ def _find_browser() -> str | None:
     return None
 
 
-def _open_app_window(url: str) -> bool:
-    """Deschide o fereastră proprie (mod aplicație). True dacă a mers."""
+def _open_app_window(url: str):
+    """Deschide o fereastră proprie (mod aplicație).
+
+    Întoarce procesul ferestrei (``subprocess.Popen``) dacă a mers, altfel
+    ``None``. Profilul este unic per pornire, deci se deschide MEREU o fereastră
+    nouă legată de acest server – iar procesul poate fi așteptat ca să știm când
+    utilizatorul a închis fereastra (atunci oprim și aplicația, fără procese
+    rămase în fundal).
+    """
     browser = _find_browser()
     if not browser:
         _log("Nu am găsit Edge/Chrome pentru modul aplicație.")
-        return False
-    # profil unic per pornire -> mereu o fereastră nouă, legată de acest server
+        return None
     profile = os.path.join(_data_dir(), "win-%d" % os.getpid())
     args = [
         browser,
@@ -131,11 +137,30 @@ def _open_app_window(url: str) -> bool:
     ]
     try:
         _log(f"Deschid fereastra cu: {browser}")
-        subprocess.Popen(args)  # pornim și mergem mai departe (NU așteptăm)
-        return True
+        return subprocess.Popen(args)
     except Exception:
         _log("EROARE la deschiderea ferestrei:\n" + traceback.format_exc())
-        return False
+        return None
+
+
+def _wait_window_then_exit(proc) -> None:
+    """Așteaptă închiderea ferestrei; la închidere, aplicația se termină.
+
+    Așa se comportă ca orice program Windows: închizi fereastra -> se oprește și
+    serverul local. Dacă procesul ferestrei nu poate fi așteptat fiabil
+    (ex. Edge a predat fereastra altui proces), cădem pe o buclă care verifică
+    periodic dacă mai există vreo fereastră.
+    """
+    try:
+        proc.wait()
+        _log("Fereastra a fost închisă; opresc aplicația.")
+    except Exception:
+        _log("Nu pot aștepta fereastra; rămân pornit.\n" + traceback.format_exc())
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
 
 
 def main() -> None:
@@ -156,14 +181,10 @@ def main() -> None:
             pass
         return
 
-    if _open_app_window(url):
-        # serverul rămâne activ cât timp fereastra PowerShell/terminalul e deschis
-        print(f"PDF Studio rulează. Nu închideți această fereastră. ({url})")
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            pass
+    proc = _open_app_window(url)
+    if proc is not None:
+        print(f"PDF Studio rulează. ({url})")
+        _wait_window_then_exit(proc)
         return
 
     # Rezervă: browserul implicit, ca să apară mereu ceva.

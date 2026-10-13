@@ -3,7 +3,7 @@
 import sys
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
-datas = [("app/static", "app/static")]
+datas = [("app/static", "app/static"), ("app/trust_anchors", "app/trust_anchors")]
 binaries = []
 hiddenimports = ["uvicorn", "uvicorn.logging", "uvicorn.loops.auto",
                  "uvicorn.loops.asyncio",
