@@ -71,6 +71,23 @@ def _wait_ready(port: int, timeout: float = 60.0) -> bool:
     return False
 
 
+def _already_running(port: int) -> bool:
+    """True dacă PDF Studio rulează deja pe acest port (instanță unică).
+
+    Evităm să pornim un al doilea server când utilizatorul dă iar dublu-clic:
+    refolosim fereastra/serverul existent.
+    """
+    import json
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"http://{HOST}:{port}/__alive", timeout=1.5) as r:
+            data = json.loads(r.read().decode("utf-8"))
+            return data.get("app") == "pdf-studio"
+    except Exception:
+        return False
+
+
 def _serve(port: int) -> None:
     try:
         import uvicorn
@@ -134,18 +151,16 @@ def _find_browser() -> str | None:
 
 
 def _open_app_window(url: str):
-    """Deschide o fereastră proprie (mod aplicație).
+    """Deschide o fereastră proprie (mod aplicație). True dacă a mers.
 
-    Întoarce procesul ferestrei (``subprocess.Popen``) dacă a mers, altfel
-    ``None``. Profilul este unic per pornire, deci se deschide MEREU o fereastră
-    nouă legată de acest server – iar procesul poate fi așteptat ca să știm când
-    utilizatorul a închis fereastra (atunci oprim și aplicația, fără procese
-    rămase în fundal).
+    Profil unic per pornire -> se deschide MEREU o fereastră nouă (chromeless).
+    Lansare „fire-and-forget": NU așteptăm procesul, fiindcă Edge/Brave predau
+    fereastra unui proces deja pornit și procesul lansat se închide imediat.
     """
     browser = _find_browser()
     if not browser:
         _log("Nu am găsit Edge/Chrome pentru modul aplicație.")
-        return None
+        return False
     profile = os.path.join(_data_dir(), "win-%d" % os.getpid())
     args = [
         browser,
@@ -157,34 +172,40 @@ def _open_app_window(url: str):
     ]
     try:
         _log(f"Deschid fereastra cu: {browser}")
-        return subprocess.Popen(args)
+        subprocess.Popen(args)
+        return True
     except Exception:
         _log("EROARE la deschiderea ferestrei:\n" + traceback.format_exc())
-        return None
+        return False
 
 
-def _wait_window_then_exit(proc) -> None:
-    """Așteaptă închiderea ferestrei; la închidere, aplicația se termină.
-
-    Așa se comportă ca orice program Windows: închizi fereastra -> se oprește și
-    serverul local. Dacă procesul ferestrei nu poate fi așteptat fiabil
-    (ex. Edge a predat fereastra altui proces), cădem pe o buclă care verifică
-    periodic dacă mai există vreo fereastră.
-    """
+def _keep_alive() -> None:
     try:
-        proc.wait()
-        _log("Fereastra a fost închisă; opresc aplicația.")
-    except Exception:
-        _log("Nu pot aștepta fereastra; rămân pornit.\n" + traceback.format_exc())
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            pass
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        pass
 
 
 def main() -> None:
-    port = int(os.environ.get("PDFSTUDIO_PORT") or _free_port())
+    forced = os.environ.get("PDFSTUDIO_PORT")
+    preferred = int(forced) if forced else 8765
+
+    # „O singură instanță": dacă PDF Studio rulează deja pe portul preferat,
+    # nu pornim un al doilea server – doar deschidem o fereastră nouă către el
+    # și ieșim. Așa nu se adună servere când se dă iar dublu-clic.
+    if not os.environ.get("PDFSTUDIO_NO_BROWSER") and _already_running(preferred):
+        url = f"http://{HOST}:{preferred}"
+        _log(f"PDF Studio rulează deja pe {url}; deschid o fereastră nouă.")
+        if not _open_app_window(url):
+            try:
+                import webbrowser
+                webbrowser.open(url)
+            except Exception:
+                pass
+        return
+
+    port = preferred if forced else _free_port(preferred)
     url = f"http://{HOST}:{port}"
     _log(f"Pornire PDF Studio pe {url}")
 
@@ -194,17 +215,15 @@ def main() -> None:
 
     if os.environ.get("PDFSTUDIO_NO_BROWSER"):
         # mod de verificare (CI): ținem serverul pornit fără fereastră
-        try:
-            while True:
-                time.sleep(3600)
-        except KeyboardInterrupt:
-            pass
+        _keep_alive()
         return
 
-    proc = _open_app_window(url)
-    if proc is not None:
+    if _open_app_window(url):
+        # NU așteptăm procesul ferestrei: Edge/Brave predau fereastra unui proces
+        # deja pornit, iar procesul lansat se închide imediat – așteptarea lui ar
+        # opri serverul din greșeală. Ținem serverul activ cât durează sesiunea.
         print(f"PDF Studio rulează. ({url})")
-        _wait_window_then_exit(proc)
+        _keep_alive()
         return
 
     # Rezervă: browserul implicit, ca să apară mereu ceva.
@@ -214,11 +233,7 @@ def main() -> None:
         webbrowser.open(url)
     except Exception:
         _log("EROARE browser implicit:\n" + traceback.format_exc())
-    try:
-        while True:
-            time.sleep(3600)
-    except KeyboardInterrupt:
-        pass
+    _keep_alive()
 
 
 if __name__ == "__main__":

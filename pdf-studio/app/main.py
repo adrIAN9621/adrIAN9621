@@ -70,6 +70,12 @@ async def to_pdf(file: UploadFile = File(...)):
     return _download(data, _stem(file.filename) + ".pdf", PDF)
 
 
+@app.get("/__alive")
+def _alive():
+    """Marcaj pentru detecția „o singură instanță" din desktop.py."""
+    return {"app": "pdf-studio"}
+
+
 @app.get("/api/convert/status")
 def convert_status():
     return {"soffice": convert.find_soffice()}
