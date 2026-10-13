@@ -96,8 +96,10 @@ def _find_browser() -> str | None:
         r"BraveSoftware\Brave-Browser\Application\brave.exe",
         r"Vivaldi\Application\vivaldi.exe",
     ]
-    for base in (pf, pfx, local):
-        for rel in rels:
+    # rel în exterior: respectăm ordinea preferată de browsere (Edge întâi,
+    # fereastră curată, aspect „Adobe"), indiferent în ce folder e instalat.
+    for rel in rels:
+        for base in (pf, pfx, local):
             if base:
                 p = os.path.join(base, rel)
                 if os.path.exists(p):
