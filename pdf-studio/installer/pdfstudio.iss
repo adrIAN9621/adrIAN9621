@@ -28,7 +28,10 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesInstallIn64BitMode=x64compatible
 
 [Languages]
-Name: "ro"; MessagesFile: "compiler:Languages\Romanian.isl"
+; Folosim limba implicită (întotdeauna prezentă la orice instalare Inno Setup).
+; Romanian.isl poate lipsi din instalarea prin winget și ar opri compilarea.
+; Numele aplicației și al scurtăturilor rămân oricum în română (vezi mai jos).
+Name: "default"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Creează o scurtătură pe desktop"; GroupDescription: "Scurtături:"
