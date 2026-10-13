@@ -1,0 +1,43 @@
+ANCORE DE ÎNCREDERE – validarea semnăturilor „de încredere" în PDF Studio
+==========================================================================
+
+PDF Studio consideră o semnătură „de încredere" dacă lanțul certificatului
+ajunge la o rădăcină (CA) în care avem încredere. Sursele de încredere, în
+ordine, sunt deja configurate automat:
+
+  1. Rădăcinile sistemului de operare + pachetul certifi
+     (include deja „certSIGN Root CA G2" – rădăcina AlfaSign / certSIGN).
+  2. Magazinul de certificate Windows „ROOT" și „CA"
+     (aici ajung rădăcina și CA-ul emitent STS / certSIGN atunci când se
+     instalează driverul de token sau semnătura din cloud – deci semnăturile
+     tale apar „de încredere" fără nicio configurare pe laptopul de semnare).
+  3. Fișierele de certificat puse ÎN ACEST DOSAR (și în
+     %LOCALAPPDATA%\PDF-Studio\trust).
+
+Când să pui ceva aici
+---------------------
+Doar dacă o semnătură apare „neîncrezută" pe un calculator pe care NU e
+instalat driverul de token / lanțul STS. Atunci copiază aici fișierul
+rădăcinii (și, dacă îl ai, al CA-ului intermediar) de la furnizor:
+
+  • certSIGN (AlfaSign):  certSIGN Root CA G2  +  CA-ul emitent al certificatului
+  • STS:                  rădăcina STS  +  CA-ul emitent STS
+
+Formate acceptate: .pem, .crt, .cer, .der, .p7b, .p7c
+(un fișier poate conține mai multe certificate).
+
+Cum obții fișierul rădăcinii de pe laptopul unde semnezi (fără internet):
+  1. Deschide „Gestionați certificate de utilizator" (certmgr.msc) sau
+     „certlm.msc" pentru magazinul calculatorului.
+  2. La „Autorități de certificare rădăcină de încredere" → „Certificate",
+     găsește rădăcina furnizorului (ex. „certSIGN Root CA G2", rădăcina STS).
+  3. Clic dreapta → Toate activitățile → Export → DER sau Base-64 → salvează
+     fișierul .cer și copiază-l în acest dosar. La fel pentru CA-ul intermediar
+     din „Autorități de certificare intermediare".
+
+După ce pui fișierele, repornește aplicația și revalidează documentul.
+
+Notă: Adobe afișează „de încredere" pentru că folosește Lista Europeană de
+Certificate de Încredere (EU Trusted List). PDF Studio folosește sursele de
+mai sus; faptul că o semnătură apare „neîncrezută" NU înseamnă că e invalidă –
+integritatea documentului și identitatea semnatarului sunt verificate separat.

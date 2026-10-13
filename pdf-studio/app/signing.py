@@ -250,9 +250,51 @@ def _load_cert_bytes(data: bytes) -> list[asn1_x509.Certificate]:
     return out
 
 
+def _trust_dirs() -> list[str]:
+    """Dosarele unde se caută ancore de încredere suplimentare (certificate CA).
+
+    Utilizatorul poate pune aici fișiere .pem/.crt/.cer/.der cu rădăcina și/sau
+    CA-ul emitent (de ex. de la STS / certSIGN) ca semnăturile să apară „de
+    încredere" fără altă configurare:
+      * ``app/trust_anchors/`` – livrat cu aplicația;
+      * ``%LOCALAPPDATA%\\PDF-Studio\\trust`` – per utilizator.
+    """
+    dirs: list[str] = [os.path.join(os.path.dirname(__file__), "trust_anchors")]
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    dirs.append(os.path.join(base, "PDF-Studio", "trust"))
+    return dirs
+
+
+def _folder_ca_ders() -> list[bytes]:
+    """Octeții DER/PEM ai certificatelor găsite în dosarele de încredere."""
+    out: list[bytes] = []
+    for d in _trust_dirs():
+        if not d or not os.path.isdir(d):
+            continue
+        for ext in ("*.pem", "*.crt", "*.cer", "*.der", "*.p7b", "*.p7c"):
+            for path in glob.glob(os.path.join(d, ext)):
+                try:
+                    with open(path, "rb") as f:
+                        out.append(f.read())
+                except Exception as e:
+                    log.debug("Nu pot citi ancora %s: %s", path, e)
+    return out
+
+
+def _certs_from_many(blobs: list[bytes]) -> list[asn1_x509.Certificate]:
+    out: list[asn1_x509.Certificate] = []
+    for b in blobs:
+        try:
+            out.extend(_load_cert_bytes(b))
+        except Exception as e:
+            log.debug("Certificat ignorat (neparsabil): %s", e)
+    return out
+
+
 @functools.lru_cache(maxsize=1)
 def _default_trust_roots() -> tuple[asn1_x509.Certificate, ...]:
-    """Rădăcini implicite: magazinul sistemului (oscrypto) + certifi."""
+    """Rădăcini implicite: magazinul sistemului + certifi + magazinul Windows
+    „ROOT" + dosarele de ancore (STS / certSIGN etc.)."""
     roots: dict[bytes, asn1_x509.Certificate] = {}
     try:
         from oscrypto import trust_list  # type: ignore
@@ -275,7 +317,42 @@ def _default_trust_roots() -> tuple[asn1_x509.Certificate, ...]:
                 roots[c.sha256] = c
     except Exception as e:
         log.debug("certifi indisponibil: %s", e)
+    # Magazinul „ROOT" al Windows (aici ajunge rădăcina STS/certSIGN la
+    # instalarea driverului de token sau a lanțului din cloud).
+    try:
+        for der in winsign.list_system_ca_ders(("ROOT",)).get("ROOT", []):
+            try:
+                c = asn1_x509.Certificate.load(der)
+                c.native
+                roots[c.sha256] = c
+            except Exception:
+                continue
+    except Exception as e:
+        log.debug("Magazinul ROOT Windows indisponibil: %s", e)
+    # Dosarele de ancore livrate / per utilizator.
+    for c in _certs_from_many(_folder_ca_ders()):
+        roots[c.sha256] = c
     return tuple(roots.values())
+
+
+@functools.lru_cache(maxsize=1)
+def _default_intermediates() -> tuple[asn1_x509.Certificate, ...]:
+    """Certificate CA intermediare cunoscute: magazinul Windows „CA" + dosarele
+    de ancore. Ajută la construirea lanțului până la rădăcină."""
+    inter: dict[bytes, asn1_x509.Certificate] = {}
+    try:
+        for der in winsign.list_system_ca_ders(("CA",)).get("CA", []):
+            try:
+                c = asn1_x509.Certificate.load(der)
+                c.native
+                inter[c.sha256] = c
+            except Exception:
+                continue
+    except Exception as e:
+        log.debug("Magazinul CA Windows indisponibil: %s", e)
+    for c in _certs_from_many(_folder_ca_ders()):
+        inter[c.sha256] = c
+    return tuple(inter.values())
 
 
 # ---------------------------------------------------------------------------
@@ -895,8 +972,10 @@ def _build_vc(extra_trust_roots: list[bytes] | None) -> tuple[ValidationContext,
             roots.extend(_load_cert_bytes(data))
         except Exception as e:
             errors.append(f"Certificatul de încredere #{i + 1} nu a putut fi citit: {e}")
+    others = list(_default_intermediates())
     vc = ValidationContext(
         trust_roots=roots,
+        other_certs=others or None,
         allow_fetching=VALIDATION_ALLOW_FETCHING,
         revocation_mode="soft-fail",
     )
@@ -1067,7 +1146,12 @@ def _summary_ro(r: dict, status) -> str:
     elif r["trusted"]:
         parts.append("Certificat de încredere")
     elif r["intact"] and r["valid"]:
-        parts.append("Certificat neîncrezut (CA necunoscut)")
+        parts.append(
+            "Certificat neîncrezut pe acest calculator (rădăcina CA nu e "
+            "instalată). Semnătura e validă; pentru a apărea de încredere, "
+            "instalează driverul de token / lanțul STS, sau pune rădăcina în "
+            "dosarul trust_anchors"
+        )
     if r["timestamp"]:
         parts.append("Marcă temporală prezentă")
     return "; ".join(parts)

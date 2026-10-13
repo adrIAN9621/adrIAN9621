@@ -336,6 +336,52 @@ def list_windows_certs() -> list[dict]:
     return out
 
 
+def list_system_ca_ders(stores: tuple[str, ...] = ("ROOT", "CA")) -> dict[str, list[bytes]]:
+    """Octeții DER ai certificatelor de autoritate din magazinele de sistem Windows.
+
+    Citește magazinele „ROOT" (rădăcini de încredere) și „CA" (autorități
+    intermediare). Aici ajung rădăcina și CA-ul emitent STS / certSIGN atunci
+    când se instalează driverul de token (AlfaSign) sau lanțul semnăturii din
+    cloud, deci le putem folosi ca ancore de încredere în validator — fără ca
+    utilizatorul să încarce manual vreun fișier.
+
+    Întoarce ``{"ROOT": [der, ...], "CA": [der, ...]}``. Pe sisteme non-Windows
+    sau la orice eroare întoarce liste goale (nu ridică excepție).
+    """
+    result: dict[str, list[bytes]] = {name: [] for name in stores}
+    if not available():
+        return result
+    try:
+        ctypes, crypt32, _advapi32, _ncrypt = _win_libs()
+        CERT_CONTEXT, _ = _cert_context_class(ctypes)
+        _setup_prototypes(ctypes, crypt32, _advapi32, _ncrypt, CERT_CONTEXT)
+    except Exception:
+        return result
+
+    for name in stores:
+        store = None
+        try:
+            store = crypt32.CertOpenSystemStoreW(None, name)
+            if not store:
+                continue
+            ctx = crypt32.CertEnumCertificatesInStore(store, None)
+            while ctx:
+                try:
+                    result[name].append(_der_from_context(ctypes, ctx))
+                except Exception:
+                    pass
+                ctx = crypt32.CertEnumCertificatesInStore(store, ctx)
+        except Exception:
+            pass
+        finally:
+            if store:
+                try:
+                    crypt32.CertCloseStore(store, 0)
+                except Exception:
+                    pass
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Signer pyHanko peste magazinul Windows
 # ---------------------------------------------------------------------------
