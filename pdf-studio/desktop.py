@@ -18,6 +18,22 @@ import traceback
 HOST = "127.0.0.1"
 
 
+def _ensure_std_streams() -> None:
+    """În .exe-ul fără consolă (console=False) ``sys.stdout``/``stderr`` sunt
+    ``None``. Multe biblioteci (uvicorn la configurarea logării colorate, dar și
+    ``print``) apelează ``.isatty()`` / ``.write()`` pe ele și crapă. Le punem
+    un flux „gol" valid ca totul să funcționeze."""
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name, None) is None:
+            try:
+                setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
+            except Exception:
+                pass
+
+
+_ensure_std_streams()
+
+
 def _data_dir() -> str:
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     d = os.path.join(base, "PDF-Studio")
@@ -44,7 +60,7 @@ def _free_port(preferred: int = 8765) -> int:
     return preferred
 
 
-def _wait_ready(port: int, timeout: float = 40.0) -> bool:
+def _wait_ready(port: int, timeout: float = 60.0) -> bool:
     end = time.time() + timeout
     while time.time() < end:
         try:
@@ -60,7 +76,9 @@ def _serve(port: int) -> None:
         import uvicorn
 
         from app.main import app
-        uvicorn.run(app, host=HOST, port=port, log_level="warning")
+        # log_config=None: nu lăsăm uvicorn să-și configureze logarea colorată,
+        # care apelează sys.stdout.isatty() și crapă în .exe-ul fără consolă.
+        uvicorn.run(app, host=HOST, port=port, log_level="warning", log_config=None)
     except Exception:
         _log("EROARE server:\n" + traceback.format_exc())
 
