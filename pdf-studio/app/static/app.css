@@ -367,8 +367,8 @@ details.adv[open] > summary { margin-bottom: .6rem; }
   padding: 0; margin: 0; border: 1px solid transparent; border-radius: 2px; overflow: visible; box-sizing: border-box;
   font-family: system-ui, "Segoe UI", Arial, sans-serif; transition: background .12s, border-color .12s;
 }
-.edit-span:hover { border-color: rgba(14, 154, 194, .55); background: rgba(14, 154, 194, .06); }
-.edit-span:focus { outline: none; border-color: var(--primary); background: #fff; color: #000 !important; box-shadow: 0 0 0 2px rgba(14, 154, 194, .25); }
+.edit-span:hover { border-color: rgba(14, 154, 194, .75); box-shadow: 0 0 0 1px rgba(14,154,194,.4); }
+.edit-span:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(14, 154, 194, .35); }
 
 /* ---------- panou succes semnare ---------- */
 .sign-success { border: 1px solid var(--ok); background: var(--ok-soft); }

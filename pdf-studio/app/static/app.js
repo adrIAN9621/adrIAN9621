@@ -910,6 +910,46 @@
     if (textEditLayer) { textEditLayer.remove(); textEditLayer = null; }
   }
 
+  // Eșantionează culoarea de fundal din imaginea paginii, lângă fiecare text,
+  // ca să putem acoperi textul original (evită efectul de „dublare").
+  function makeBgSampler(pageW, pageH) {
+    let dataImg = null, iw = 0, ih = 0;
+    try {
+      const img = viewer.wrap.querySelector("img");
+      if (img && img.naturalWidth) {
+        const c = document.createElement("canvas");
+        iw = img.naturalWidth; ih = img.naturalHeight;
+        c.width = iw; c.height = ih;
+        const cx = c.getContext("2d");
+        cx.drawImage(img, 0, 0);
+        dataImg = cx.getImageData(0, 0, iw, ih).data;
+      }
+    } catch (_) { dataImg = null; }
+
+    return function (bbox) {
+      if (!dataImg) return "#fff";
+      const sx = iw / pageW, sy = ih / pageH;
+      const [x0, y0, x1, y1] = bbox;
+      const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
+      // puncte chiar în afara textului (acolo e aproape sigur fundalul)
+      const pts = [
+        [midX, y0 - 2], [midX, y1 + 2], [x0 - 2, midY], [x1 + 2, midY],
+        [x0 - 2, y0 - 2], [x1 + 2, y0 - 2], [x0 - 2, y1 + 2], [x1 + 2, y1 + 2],
+      ];
+      const counts = {};
+      let best = null, bestN = 0;
+      for (const [px, py] of pts) {
+        const ix = Math.min(iw - 1, Math.max(0, Math.round(px * sx)));
+        const iy = Math.min(ih - 1, Math.max(0, Math.round(py * sy)));
+        const o = (iy * iw + ix) * 4;
+        const key = (dataImg[o] >> 4) + "," + (dataImg[o + 1] >> 4) + "," + (dataImg[o + 2] >> 4);
+        counts[key] = (counts[key] || 0) + 1;
+        if (counts[key] > bestN) { bestN = counts[key]; best = [dataImg[o], dataImg[o + 1], dataImg[o + 2]]; }
+      }
+      return best ? `rgb(${best[0]},${best[1]},${best[2]})` : "#fff";
+    };
+  }
+
   async function renderTextEditOverlay() {
     if (!D.textEditMode || !D.file) return;
     const my = ++textEditToken;
@@ -924,18 +964,27 @@
     }
     if (my !== textEditToken || !D.textEditMode || D.page !== page) return;
     if (textEditLayer) { textEditLayer.remove(); textEditLayer = null; }
+    const [PW, PH] = pageSize(page);
+    const sampleBg = makeBgSampler(PW, PH);
+    // scara reală afișată (contează la „Potrivire lățime"), nu valoarea zoom
+    const pimg = viewer.wrap.querySelector("img");
+    const sx = (pimg && pimg.clientWidth) ? pimg.clientWidth / PW : zoom;
+    const sy = (pimg && pimg.clientHeight) ? pimg.clientHeight / PH : zoom;
     const layer = h("div", { class: "edit-text-layer" });
     (data.spans || []).forEach((sp) => {
       const [x0, y0, x1, y1] = sp.bbox;
-      const w = Math.max(0, (x1 - x0) * zoom);
-      const hh = Math.max(0, (y1 - y0) * zoom);
+      const w = Math.max(0, (x1 - x0) * sx);
+      const hh = Math.max(0, (y1 - y0) * sy);
       const div = h("div", { class: "edit-span", contenteditable: "true", spellcheck: "false", title: "Faceți clic pentru a rescrie textul" });
       div.textContent = sp.text;
+      // fundalul = culoarea din spatele textului (acoperă textul original -> fără dublare)
+      const bg = sampleBg(sp.bbox);
       Object.assign(div.style, {
-        left: (x0 * zoom) + "px", top: (y0 * zoom) + "px",
+        left: (x0 * sx) + "px", top: (y0 * sy) + "px",
         minWidth: w + "px", height: hh + "px", lineHeight: hh + "px",
-        fontSize: (sp.size * zoom) + "px", color: sp.color,
+        fontSize: (sp.size * sy) + "px", color: sp.color,
         fontWeight: sp.bold ? "700" : "400", fontStyle: sp.italic ? "italic" : "normal",
+        background: bg || "#fff",
       });
       const orig = sp.text;
       let myOp = null;
