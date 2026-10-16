@@ -12,6 +12,7 @@ Comenzi (rulate din dosarul dispecer-personal):
     python -m app.cmdpers locatii       pozițiile locomotivelor acum
     python -m app.cmdpers explora       caută prin aplicație paginile cu mecanici / activități / comenzi
     python -m app.cmdpers mecanici      salvează tabelele din paginile de mecanici (JSON local)
+    python -m app.cmdpers comenzi       comenzile active (ActiveOrders): cine e comandat pe ce tren
     python -m app.cmdpers inregistreaza înregistrează pozițiile la fiecare minut (pentru teste)
 """
 from __future__ import annotations
@@ -230,6 +231,48 @@ class CmdPers:
         raw = self.search("/LocomotiveLocation/Index", "/LocomotiveLocation/GetLatestLocation",
                           {"activeOnly": "true" if active_only else "false", "numarTren": "", "locomotiva": ""})
         return parse_items(raw)
+
+
+    def comenzi_active(self) -> tuple[list[str], list[dict], list[str]]:
+        """Comenzile active (ce mecanic / ajutor e comandat pe ce tren) din /ActiveOrders/Index.
+
+        → (coloane, rânduri, jurnal). Tabelul e citit din pagină; dacă pagina îl încarcă separat
+        (DataTables / AJAX), se încearcă cererile de citire găsite în scripturile paginii.
+        """
+        from .inforu import _rows_from_json
+        jurnal: list[str] = []
+        page_path = "/ActiveOrders/Index"
+        text = self.get(page_path)
+        page = parse_page(text)
+        jurnal.append(f"pagina „{page.title.strip()}”: {len(page.tables)} tabele, {len(page.forms)} formulare")
+        best = max(page.tables, key=lambda t: len(t["rows"]), default=None)
+        if best and best["rows"]:
+            rows = best["rows"]
+            cols = best["headers"] or [f"col{i + 1}" for i in range(len(rows[0]))]
+            return cols, [dict(zip(cols, r)) for r in rows], jurnal
+        token = csrf_token(text)
+        for u in ajax_urls(page):
+            path = urllib.parse.urlsplit(u).path
+            if "activeorder" not in path.lower():
+                continue
+            for method in ("POST", "GET"):
+                try:
+                    data = {"__RequestVerificationToken": token} if method == "POST" and token else None
+                    _, ct, body = self.request(method, path, data, ajax=True, referer=page_path)
+                except Refuzat as e:
+                    jurnal.append(f"{method} {path}: blocat ({e})")
+                    continue
+                except Exception as e:
+                    jurnal.append(f"{method} {path}: eroare {e}")
+                    continue
+                rows = _rows_from_json(body)
+                jurnal.append(f"{method} {path}: {len(rows)} rânduri")
+                if rows:
+                    return list(rows[0].keys()), rows, jurnal
+        if best and best["headers"]:
+            jurnal.append("tabel fără rânduri (nicio comandă activă?) – coloane: " + " | ".join(best["headers"]))
+            return best["headers"], [], jurnal
+        return [], [], jurnal
 
 
 def from_config(path: Path = CONFIG, ask: bool = False) -> CmdPers:
@@ -456,7 +499,7 @@ def _record(cp: CmdPers, folder: Path, interval: int) -> None:
 
 def main(argv: list[str]) -> int:
     cmd = argv[0] if argv else "test"
-    if cmd not in ("test", "locatii", "explora", "mecanici", "inregistreaza"):
+    if cmd not in ("test", "locatii", "explora", "mecanici", "inregistreaza", "comenzi"):
         print(__doc__)
         return 1
     cfg = load_config()
@@ -483,6 +526,19 @@ def main(argv: list[str]) -> int:
             print(f"  {it.get('LocomotiveNumber')}: {it.get('Lat')}, {it.get('Lng')}  tren {trains or '–'}  {it.get('Timestamp')}")
         if items:
             print("Câmpuri disponibile:", ", ".join(sorted(items[0].keys())))
+    elif cmd == "comenzi":
+        cols, rows, jurnal = cp.comenzi_active()
+        print(f"{len(rows)} comenzi active")
+        print("Coloane:", " | ".join(cols) or "(nu am găsit tabelul)")
+        for j in jurnal:
+            print("  ", j)
+        d = folder / "comenzi"
+        d.mkdir(parents=True, exist_ok=True)
+        acum = datetime.now().replace(microsecond=0)
+        p = d / f"{acum:%Y-%m-%dT%H-%M-%S}.json"
+        p.write_text(json.dumps({"ora": acum.isoformat(), "coloane": cols, "comenzi": rows}, ensure_ascii=False,
+                                indent=1), encoding="utf-8")
+        print("Salvat local (cu nume – nu se trimite nicăieri):", p)
     elif cmd == "explora":
         print("Raport:", explore(cp, folder / "explorare"))
     elif cmd == "mecanici":

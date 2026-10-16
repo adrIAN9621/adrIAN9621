@@ -31,6 +31,11 @@ ENGINEERS = """<html><head><title>Mecanici</title></head><body>
 <script>$.post('/cmdpers_carpatica/LocomotiveEngineer/GetActivities', {id: 5});</script>
 </body></html>"""
 
+ACTIVE = """<html><head><title>Comenzi active</title></head><body>
+<table id="orders"><tr><th>Mecanic</th><th>Functie</th><th>Tren</th><th>Locomotiva</th><th>Ora prezentare</th><th>Statie</th></tr>
+<tr><td>Popescu Ion</td><td>MEC</td><td>584280</td><td>91530401234</td><td>16.10.2026 08:00</td><td>Constanta</td></tr>
+</table><a href="/cmdpers_carpatica/ActiveOrders/Close/5">Inchide</a></body></html>"""
+
 LOC_PAGE = """<html><head><title>Locatii</title></head><body>
 <input name="__RequestVerificationToken" type="hidden" value="tok123"></body></html>"""
 
@@ -62,6 +67,8 @@ class Fake(BaseHTTPRequestHandler):
             return self._send(302, "", headers=[("Location", "/cmdpers_carpatica/Account/Login")])
         if "LocomotiveEngineer" in path or path.rstrip("/").endswith("cmdpers_carpatica"):
             return self._send(200, ENGINEERS)
+        if path.endswith("/ActiveOrders/Index"):
+            return self._send(200, ACTIVE)
         if "LocomotiveLocation" in path:
             return self._send(200, LOC_PAGE)
         return self._send(404, "nu")
@@ -201,3 +208,10 @@ def test_wrong_password_is_not_retried_and_never_leaks(server):
         cp.locations()
     assert len(HITS) == n  # fără încercări noi de logare (contul nu se blochează)
     assert "parola-gresita" not in str(e1.value) + str(e2.value)
+
+
+def test_active_orders_table(server):
+    cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+    cols, rows, jurnal = cp.comenzi_active()
+    assert cols[:3] == ["Mecanic", "Functie", "Tren"] and rows[0]["Tren"] == "584280"
+    assert not any("Close" in p for _, p in HITS)
