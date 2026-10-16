@@ -95,7 +95,8 @@ def test_full_flow_accept_handover_and_pontaj():
     assert closed["end"] - closed["start"] <= eng.cfg.program_max_ore * H
     new = eng.db.one("SELECT * FROM pontaj WHERE person_id=? AND active=1", [off["person_id"]])
     assert new["train"] == req["train"] and new["start"] == closed["end"] and new["source"] == "InfoRU"
-    assert eng.db.one("SELECT status FROM persons WHERE id=?", [old["person_id"]])["status"] == "odihna"
+    # după prima tură: pauză de 2–6 h în care poate lua a doua tură
+    assert eng.db.one("SELECT status FROM persons WHERE id=?", [old["person_id"]])["status"] == "pauza"
 
 
 def test_refuse_goes_to_next_candidate():
@@ -272,3 +273,67 @@ def test_cmdpers_positions_drive_handover_and_pontaj(tmp_path):
     new = eng.db.one("SELECT * FROM pontaj WHERE person_id=?", [off["person_id"]])
     assert old["active"] == 0 and old["end_station"] == off["station"]
     assert new["start"] == old["end"] and new["start_station"] == off["station"]
+
+
+
+# ------------------------------------------- ciclul: tura 1 → pauză 2–6 h → tura 2 → odihnă cât ciclul
+def _pj(eng, pid, start, end, station="BV"):
+    return eng.db.insert("pontaj", train="X", person_id=pid, role="mecanic", start=start, start_station="BN",
+                         end=end, end_station=station, active=0)
+
+
+def test_cycle_first_shift_gives_pause_then_long_rest():
+    eng, clock = make_engine()
+    pid = "M030"
+    t1 = T0
+    a = _pj(eng, pid, t1, t1 + 11 * H)
+    eng._dupa_tura(eng.db.one("SELECT * FROM pontaj WHERE id=?", [a]), t1 + 11 * H)
+    p = eng.db.one("SELECT * FROM persons WHERE id=?", [pid])
+    assert p["status"] == "pauza" and p["pauza_de_la"] == t1 + 11 * H and p["status_until"] == t1 + 17 * H
+    # tura 2 începe după 4 h pauză și ține 10 h → odihnă = 11 + 4 + 10 = 25 h
+    b = _pj(eng, pid, t1 + 15 * H, t1 + 25 * H)
+    eng._dupa_tura(eng.db.one("SELECT * FROM pontaj WHERE id=?", [b]), t1 + 25 * H)
+    p = eng.db.one("SELECT * FROM persons WHERE id=?", [pid])
+    assert p["status"] == "odihna" and p["status_until"] == t1 + 25 * H + 25 * H
+
+
+def test_third_shift_is_a_new_cycle_not_a_second():
+    eng, _ = make_engine()
+    pid = "M029"
+    _pj(eng, pid, T0, T0 + 10 * H)
+    _pj(eng, pid, T0 + 13 * H, T0 + 20 * H)                 # tura 2 a ciclului
+    c = _pj(eng, pid, T0 + 22 * H, T0 + 30 * H)             # (în practică interzis) – nu e „a doua” iar
+    eng._dupa_tura(eng.db.one("SELECT * FROM pontaj WHERE id=?", [c]), T0 + 30 * H)
+    assert eng.db.one("SELECT status FROM persons WHERE id=?", [pid])["status"] == "pauza"
+
+
+def test_pause_expired_becomes_normal_rest():
+    eng, clock = make_engine()
+    pid = "M028"
+    eng.db.update("persons", pid, status="pauza", pauza_de_la=T0, status_until=T0 + 6 * H)
+    clock.t = T0 + 6 * H + 1
+    eng._release_rest(clock.now())
+    p = eng.db.one("SELECT * FROM persons WHERE id=?", [pid])
+    assert p["status"] == "odihna" and p["status_until"] == T0 + eng.cfg.odihna_ore * H
+
+
+def test_pause_window_and_location_in_matching():
+    cfg = Config()
+    live = LivePosition("1", 0, 0, delay_min=0, status="in_mers", last_index=0)
+    pts = matching.handover_points(cfg, tt_line(), live, program_end=T0 + 2.5 * H)   # PV la +1 h, BV la +2 h
+    near_pv = {"id": "p", "name": "P", "lat": 44.94, "lon": 26.0, "status": "pauza"}
+    # pauza a început acum 30 min: la PV (+1 h) ar avea doar 1,5 h pauză, la BV (+2 h) 2,5 h → doar BV e permisă
+    r = matching.rank(cfg, T0 - 3 * H, pts, [{**near_pv, "pauza_de_la": T0 - 0.5 * H}])
+    assert r and r[0].station == "BV"
+    # pauza a început acum 7 h → peste 6 h, nicio stație
+    assert not matching.rank(cfg, T0 - 3 * H, pts, [{**near_pv, "pauza_de_la": T0 - 7 * H}])
+
+
+def test_person_in_pause_is_located_at_handover_station():
+    eng, _ = make_engine()
+    pid = "M027"
+    _pj(eng, pid, T0 - 12 * H, T0 - 1 * H, station="CT")
+    eng.db.update("persons", pid, status="pauza", pauza_de_la=T0 - H, status_until=T0 + 5 * H)
+    loc = eng._locatie(eng.db.one("SELECT * FROM persons WHERE id=?", [pid]))
+    from app.geo import STATIONS
+    assert (loc["lat"], loc["lon"]) == STATIONS["CT"][1:]

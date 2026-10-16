@@ -156,7 +156,7 @@ function renderHeader() {
   sp.classList.toggle("hidden", state.sursa === "http" || state.sursa.endsWith("_live"));
   if (document.activeElement !== sp) sp.value = String(state.viteza);
   const c = state.personal;
-  $("#counts").innerHTML = ["disponibil", "in_deplasare", "pe_tren", "odihna", "indisponibil"]
+  $("#counts").innerHTML = ["disponibil", "in_deplasare", "pe_tren", "pauza", "odihna", "indisponibil"]
     .map(k => `<span class="chip">${STATUS[k]}: ${c[k] || 0}</span>`).join("");
 }
 

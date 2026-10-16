@@ -80,7 +80,7 @@ tr.clickable:hover { background: var(--surface-2); }
 
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .b-verde, .b-disponibil, .b-finalizat, .b-acceptat { background: var(--ok-soft); color: var(--ok); }
-.b-galben, .b-oferta, .b-in_deplasare { background: var(--warn-soft); color: var(--warn); }
+.b-galben, .b-oferta, .b-in_deplasare, .b-pauza { background: var(--warn-soft); color: var(--warn); }
 .b-rosu, .b-cautare, .b-critic { background: var(--err-soft); color: var(--err); }
 .b-gri, .b-indisponibil, .b-odihna, .b-anulat { background: var(--gray-soft); color: var(--muted); }
 .b-pe_tren { background: #dcebfa; color: var(--primary); }

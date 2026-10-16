@@ -26,7 +26,7 @@ function hours(h) {
 
 const STATUS = {
   disponibil: "disponibil", indisponibil: "indisponibil", in_deplasare: "în deplasare",
-  pe_tren: "pe tren", odihna: "odihnă", cautare: "caută", oferta: "ofertă trimisă",
+  pe_tren: "pe tren", pauza: "pauză între ture", odihna: "odihnă", cautare: "caută", oferta: "ofertă trimisă",
   acceptat: "acceptat", finalizat: "finalizat", anulat: "anulat",
 };
 

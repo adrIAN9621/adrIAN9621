@@ -19,7 +19,10 @@ class Config:
     # reguli program
     program_max_ore: float = 12.0          # durata maximă a programului mecanic/ajutor
     alerta_inainte_ore: float = 3.0        # când începe căutarea înlocuitorului
-    odihna_ore: float = 12.0               # odihnă după terminarea programului
+    odihna_ore: float = 12.0               # odihnă după o singură tură (pauza a expirat fără tura a 2-a)
+    # ciclul mecanicului: tura 1 (max 12 h) → pauză 2–6 h → tura 2 (max 12 h) → odihnă cât tot ciclul
+    pauza_min_ore: float = 2.0
+    pauza_max_ore: float = 6.0
     marja_predare_min: float = 15.0        # schimbul în stație cel târziu cu X min înainte de final
     # deplasarea personalului la tren
     viteza_deplasare_kmh: float = 60.0

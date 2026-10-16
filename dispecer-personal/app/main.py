@@ -211,7 +211,8 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
 
     @app.get("/api/personal")
     def lista_personal(_: str = Depends(dispecer)):
-        rows = db.q("SELECT id, name, role, phone, home_city, lat, lon, status, status_until FROM persons ORDER BY role, name")
+        rows = db.q("SELECT id, name, role, phone, home_city, lat, lon, status, status_until, pauza_de_la "
+                    "FROM persons ORDER BY role, name")
         for r in rows:
             r["online"] = time.time() - engine.online.get(r["id"], 0) < 30
         return rows
@@ -262,7 +263,7 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
     def eu(pid: str = Depends(personal_user)):
         with engine.lock:
             now = engine.clock.now()
-            p = db.one("SELECT id, name, role, home_city, status, status_until FROM persons WHERE id=?", [pid])
+            p = db.one("SELECT id, name, role, home_city, status, status_until, pauza_de_la FROM persons WHERE id=?", [pid])
             off = db.one("SELECT * FROM offers WHERE person_id=? AND status='trimisa' ORDER BY id DESC", [pid])
             oferta = None
             if off:

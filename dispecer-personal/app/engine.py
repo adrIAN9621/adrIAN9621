@@ -19,7 +19,7 @@ from typing import Optional
 from . import matching
 from .config import Config
 from .db import DB
-from .geo import station_name
+from .geo import STATIONS, station_name
 from .integrations.base import LivePosition, Timetable
 
 H = 3600.0
@@ -102,6 +102,10 @@ class Engine:
 
     def _release_rest(self, now: float) -> None:
         after = "disponibil" if self.cfg.test else "indisponibil"
+        # pauza a trecut fără a 2-a tură → odihnă normală, socotită de la sfârșitul turei
+        for p in self.db.q("SELECT * FROM persons WHERE status='pauza' AND status_until <= ?", [now]):
+            self.db.update("persons", p["id"], status="odihna", pauza_de_la=None,
+                           status_until=(p["pauza_de_la"] or now) + self.cfg.odihna_ore * H)
         for p in self.db.q("SELECT id FROM persons WHERE status='odihna' AND status_until <= ?", [now]):
             self.db.update("persons", p["id"], status=after, status_until=None)
 
@@ -132,9 +136,30 @@ class Engine:
             self.event("alerta", f"Tren {pj['train']}: {pj['role']} {name} termină programul la "
                                  f"{_hm(end)} – caut înlocuitor (cererea #{rid})")
 
+    def _dupa_tura(self, pj: dict, t: float) -> None:
+        """Tura 1 → pauză de 2–6 h (poate lua tura 2); tura 2 → odihnă cât tot ciclul (12 + pauză + 12)."""
+        pid = pj["person_id"]
+        prev = self.db.one("SELECT * FROM pontaj WHERE person_id=? AND id<>? AND active=0 AND end IS NOT NULL "
+                           "AND end <= ? ORDER BY end DESC LIMIT 1", [pid, pj["id"], pj["start"]])
+        a_doua = prev is not None and pj["start"] - prev["end"] <= self.cfg.pauza_max_ore * H
+        if a_doua and not self._a_doua_tura(prev):
+            odihna = t - prev["start"]
+            self.db.update("persons", pid, status="odihna", status_until=t + odihna, pauza_de_la=None)
+            self.event("pontaj", f"{self._name(pid)} a terminat a 2-a tură – odihnă {odihna / H:.1f} h "
+                                 f"(până la {_hm(t + odihna)})")
+        else:
+            self.db.update("persons", pid, status="pauza", pauza_de_la=t,
+                           status_until=t + self.cfg.pauza_max_ore * H)
+
+    def _a_doua_tura(self, pj: dict) -> bool:
+        """Tura `pj` a fost ea însăși a doua dintr-un ciclu (a început la ≤ pauza max după altă tură)."""
+        prev = self.db.one("SELECT end FROM pontaj WHERE person_id=? AND id<>? AND active=0 AND end IS NOT NULL "
+                           "AND end <= ? ORDER BY end DESC LIMIT 1", [pj["person_id"], pj["id"], pj["start"]])
+        return prev is not None and pj["start"] - prev["end"] <= self.cfg.pauza_max_ore * H
+
     def _close_pontaj(self, pj: dict, t: float, station: str) -> None:
         self.db.update("pontaj", pj["id"], end=t, end_station=station, active=0)
-        self.db.update("persons", pj["person_id"], status="odihna", status_until=t + self.cfg.odihna_ore * H)
+        self._dupa_tura(pj, t)
         row = self.db.one("SELECT * FROM pontaj WHERE id=?", [pj["id"]])
         try:
             self.personal.push_pontaj(_pontaj_export(row, self._name(row["person_id"])))
@@ -170,7 +195,8 @@ class Engine:
         points = matching.handover_points(self.cfg, tt, lv, self.program_end(pj))
         tried = {o["person_id"] for o in self.db.q("SELECT person_id FROM offers WHERE request_id=?", [r["id"]])}
         busy = {o["person_id"] for o in self.db.q("SELECT person_id FROM offers WHERE status='trimisa'")}
-        people = [p for p in self.db.q("SELECT * FROM persons WHERE status='disponibil' AND role=?", [r["role"]])
+        people = [self._locatie(p) for p in self.db.q(
+                      "SELECT * FROM persons WHERE status IN ('disponibil','pauza') AND role=?", [r["role"]])
                   if p["id"] not in tried and p["id"] not in busy]
         # dacă celălalt membru al echipajului are deja stație de schimb, preferăm aceeași stație
         other = self.db.one("SELECT station FROM requests WHERE train=? AND role<>? AND status IN ('oferta','acceptat') "
@@ -182,6 +208,16 @@ class Engine:
                 hp.urgent = True
             cands = matching.rank(self.cfg, now, points, people, other["station"] if other else None)
         return cands
+
+    def _locatie(self, p: dict) -> dict:
+        """În pauza dintre ture omul e în stația unde a predat trenul, nu acasă."""
+        if p["status"] == "pauza":
+            last = self.db.one("SELECT end_station FROM pontaj WHERE person_id=? AND active=0 "
+                               "ORDER BY end DESC LIMIT 1", [p["id"]])
+            if last and last["end_station"] in STATIONS:
+                _, lat, lon = STATIONS[last["end_station"]]
+                return {**p, "lat": lat, "lon": lon}
+        return p
 
     def _offer_next(self, r: dict, now: float) -> None:
         cands = self.candidates(r, now)
@@ -216,7 +252,11 @@ class Engine:
         for o in self.db.q("SELECT * FROM offers WHERE request_id=? AND status='trimisa'", [r["id"]]):
             self.db.update("offers", o["id"], status="anulata")
         if r["status"] == "acceptat" and r["person_id"]:
-            self.db.update("persons", r["person_id"], status="disponibil")
+            p = self.db.one("SELECT * FROM persons WHERE id=?", [r["person_id"]])
+            if p and p["pauza_de_la"] and self.clock.now() < p["pauza_de_la"] + self.cfg.pauza_max_ore * H:
+                self.db.update("persons", p["id"], status="pauza")  # înapoi în pauza dintre ture
+            else:
+                self.db.update("persons", r["person_id"], status="disponibil", pauza_de_la=None)
 
     def _try_handover(self, r: dict, now: float) -> None:
         tt, lv = self.timetables.get(r["train"]), self.live.get(r["train"])
@@ -278,7 +318,7 @@ class Engine:
             if pending:
                 raise ValueError("Omul are deja o ofertă în așteptare.")
             p = self.db.one("SELECT * FROM persons WHERE id=?", [person_id])
-            if not p or p["status"] != "disponibil" or p["role"] != r["role"]:
+            if not p or p["status"] not in ("disponibil", "pauza") or p["role"] != r["role"]:
                 raise ValueError("Persoana nu este disponibilă pentru acest rol.")
             for o in self.db.q("SELECT id FROM offers WHERE request_id=? AND status='trimisa'", [request_id]):
                 self.db.update("offers", o["id"], status="anulata")
@@ -287,7 +327,7 @@ class Engine:
             points = matching.handover_points(self.cfg, tt, lv, self.program_end(pj))
             for hp in points:  # la ofertă manuală acceptăm și sosirea la limită
                 hp.urgent = True
-            cands = matching.rank(self.cfg, self.clock.now(), points, [p])
+            cands = matching.rank(self.cfg, self.clock.now(), points, [self._locatie(p)])
             if not cands:
                 raise ValueError("Persoana e în afara razei de căutare.")
             self.make_offer(r, cands[0])
@@ -306,6 +346,8 @@ class Engine:
                 raise ValueError("Nu poți schimba starea cât ești comandat pe tren.")
             if p["status"] == "odihna" and available:
                 raise ValueError(f"Ești în odihnă până la {_hm(p['status_until'])}.")
+            if p["status"] == "pauza" and available:
+                return  # în pauză primește deja comenzi pentru tura a 2-a
             self.db.update("persons", person_id, status="disponibil" if available else "indisponibil")
 
     # ---------------------------------------------------------- simulator

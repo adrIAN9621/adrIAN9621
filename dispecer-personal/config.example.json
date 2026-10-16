@@ -4,6 +4,8 @@
   "program_max_ore": 12.0,
   "alerta_inainte_ore": 3.0,
   "odihna_ore": 12.0,
+  "pauza_min_ore": 2.0,
+  "pauza_max_ore": 6.0,
   "marja_predare_min": 15.0,
   "viteza_deplasare_kmh": 60.0,
   "pregatire_min": 30.0,

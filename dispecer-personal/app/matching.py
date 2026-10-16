@@ -75,6 +75,11 @@ def rank(cfg: Config, now: float, points: list[HandoverPoint], people: Iterable[
     for p in people:
         best: Optional[Candidate] = None
         for hp in points:
+            if p.get("status") == "pauza" and p.get("pauza_de_la"):
+                # tura a 2-a: începe (la sosirea trenului) după minimum 2 h și maximum 6 h de pauză
+                start = hp.eta
+                if not (p["pauza_de_la"] + cfg.pauza_min_ore * 3600 <= start <= p["pauza_de_la"] + cfg.pauza_max_ore * 3600):
+                    continue
             km = road_km(p["lat"], p["lon"], hp.station)
             if km > cfg.raza_max_km:
                 continue

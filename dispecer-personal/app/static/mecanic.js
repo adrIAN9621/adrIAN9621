@@ -68,10 +68,11 @@ function render() {
   $("#me-sub").textContent = `${p.id} · ${p.role === "mecanic" ? "mecanic" : "ajutor mecanic"} · ${p.home_city}`;
 
   const t = $("#toggle"), locked = ["pe_tren", "in_deplasare"].includes(p.status) || (p.status === "odihna");
-  t.classList.toggle("on", p.status === "disponibil");
+  t.classList.toggle("on", p.status === "disponibil" || p.status === "pauza");
   t.disabled = ["pe_tren", "in_deplasare"].includes(p.status);
   $("#avail-label").textContent = p.status === "disponibil" ? "Disponibil" : STATUS[p.status] ? STATUS[p.status][0].toUpperCase() + STATUS[p.status].slice(1) : p.status;
   $("#avail-sub").textContent = p.status === "disponibil" ? "Primești comenzi pentru trenurile din zonă"
+    : p.status === "pauza" ? `Poți prelua a 2-a tură între ${hm(p.pauza_de_la + 2 * 3600)} și ${hm(p.status_until)}`
     : p.status === "odihna" ? `Odihnă până la ${dhm(p.status_until)}`
     : locked ? "Ești comandat" : "Nu primești comenzi";
 

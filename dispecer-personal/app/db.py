@@ -9,8 +9,9 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS persons (
     id TEXT PRIMARY KEY, name TEXT, role TEXT, phone TEXT, home_city TEXT,
     lat REAL, lon REAL, pin TEXT,
-    status TEXT DEFAULT 'disponibil',   -- disponibil | indisponibil | in_deplasare | pe_tren | odihna
-    status_until REAL
+    status TEXT DEFAULT 'disponibil',   -- disponibil | indisponibil | in_deplasare | pe_tren | pauza | odihna
+    status_until REAL,
+    pauza_de_la REAL                    -- sfârșitul turei 1 (pauza de 2–6 h în care poate lua tura 2)
 );
 CREATE TABLE IF NOT EXISTS pontaj (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +47,9 @@ class DB:
         self.lock = threading.RLock()
         with self.lock:
             self.conn.executescript(SCHEMA)
+            cols = {r[1] for r in self.conn.execute("PRAGMA table_info(persons)")}
+            if "pauza_de_la" not in cols:  # baze de date create de versiuni mai vechi
+                self.conn.execute("ALTER TABLE persons ADD COLUMN pauza_de_la REAL")
 
     def q(self, sql: str, args: Iterable[Any] = ()) -> list[dict]:
         with self.lock:

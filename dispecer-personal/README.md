@@ -12,6 +12,9 @@ O singură aplicație simplă, pe module, care înlocuiește lucrul în paralel 
 
 1. **InfoRU** dă poziția live a fiecărui tren; **Mersul Trenurilor** dă traseul și orele.
 2. Pentru fiecare om de pe tren se calculează cât a lucrat și când se termină programul (implicit 12 h).
+   Ciclul mecanicului: **tura 1 (max 12 h) → pauză 2–6 h → tura 2 (max 12 h) → odihnă cât tot ciclul**
+   (12 + pauză + 12). În pauză poate primi comanda pentru tura 2, socotit din stația unde a predat trenul,
+   dacă trenul ajunge acolo între ora 2 și ora 6 de pauză.
 3. Cu **3 ore înainte** de final, aplicația caută înlocuitor:
    * ia stațiile **din fața trenului, în sensul de mers**, la care trenul ajunge înainte ca echipajul actual să termine programul (ora estimată = mers + întârzierea live);
    * pentru fiecare mecanic/ajutor **disponibil** calculează distanța **domiciliu → stație** și dacă ajunge înaintea trenului;
@@ -118,7 +121,8 @@ Copiază `config.example.json` în `config.json` și modifică ce trebuie:
 | `doar_citire` | `true` | nu trimite nimic spre sistemele externe |
 | `program_max_ore` | 12 | durata maximă a programului |
 | `alerta_inainte_ore` | 3 | când începe căutarea înlocuitorului |
-| `odihna_ore` | 12 | odihna după program |
+| `pauza_min_ore`, `pauza_max_ore` | 2, 6 | pauza după tura 1 – în ea poate prelua tura 2 (de la stația unde a predat) |
+| `odihna_ore` | 12 | odihna dacă pauza trece fără tura 2; după tura 2 odihna = tot ciclul (12 + pauză + 12) |
 | `marja_predare_min` | 15 | schimbul se face cu cel puțin atât înainte de final |
 | `viteza_deplasare_kmh`, `pregatire_min` | 60, 30 | estimarea drumului de acasă la gară |
 | `raza_max_km` | 250 | nu se caută oameni mai departe |
