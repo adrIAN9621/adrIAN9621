@@ -102,3 +102,14 @@ Reîmprospătați pagina — apare laptopul; „Arată parola” scrie și în j
 | RustDesk – instalare | Da (varianta A) | Nu |
 | RustDesk – control real | Nevoie de 2 mașini (varianta B, IP direct) | Nu |
 | Colector | Da, complet | Nu |
+
+---
+
+## 4. Dispecer Personal — complet local (simulator)
+```
+cd dispecer-personal
+start_windows.bat         (Windows)   sau   ./start.sh   (Linux/macOS)
+```
+* Dispecer: `http://127.0.0.1:8780` (parola `dispecer`) — hartă live, ore lucrate, cereri de înlocuire, pontaj.
+* Mecanic pe telefon: `http://127.0.0.1:8780/mecanic` (ex. `M010` / PIN `1234`). Pentru telefoane din rețea porniți cu `DISPECER_HOST=0.0.0.0`.
+Ceasul simulatorului merge ×60, ca să vedeți în câteva minute alerta de 3 ore, oferta, schimbul în stație și pontajul automat.

@@ -1,0 +1,148 @@
+/* ===== Dispecer Personal – temă Carpatica Feroviar ===== */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #f4f6f9;
+  --border: #d6dde7;
+  --text: #14202e;
+  --muted: #5e6b7c;
+  --primary: #0b4f8a;
+  --primary-hover: #093f6f;
+  --on-primary: #ffffff;
+  --navy: #0d2238;
+  --cyan: #0e9ac2;
+  --ok: #1f7a3a;
+  --ok-soft: #e4f3e8;
+  --warn: #a86300;
+  --warn-soft: #fff1d6;
+  --err: #b42318;
+  --err-soft: #fdeaea;
+  --gray-soft: #e9edf2;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 32, 54, .06), 0 6px 18px rgba(16, 32, 54, .07);
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a1624;
+    --surface: #10223a;
+    --surface-2: #142a46;
+    --border: #22395a;
+    --text: #e8eef6;
+    --muted: #93a5bb;
+    --primary: #2f8fe0;
+    --primary-hover: #4aa1ea;
+    --ok: #4cc27a;
+    --ok-soft: #12351f;
+    --warn: #f2b23a;
+    --warn-soft: #3a2b0d;
+    --err: #ff6b5e;
+    --err-soft: #3d1614;
+    --gray-soft: #1b304d;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; }
+button, input, select { font: inherit; }
+h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.hidden { display: none !important; }
+
+/* bara de sus */
+.appbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: var(--navy); color: #e8eef6; flex-wrap: wrap; }
+.brand { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.brand .dot { width: 10px; height: 10px; border-radius: 50%; background: #19c3e6; box-shadow: 0 0 8px #19c3e6; }
+.appbar .spacer { flex: 1; }
+.clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+.appbar select, .appbar a { color: #e8eef6; background: transparent; border: 1px solid #2c4566; border-radius: 6px; padding: 4px 8px; text-decoration: none; }
+.appbar select option { color: #000; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; background: #1b3352; }
+
+.tabs { display: flex; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab { border: 0; background: none; padding: 11px 14px; cursor: pointer; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab.active { color: var(--text); border-bottom-color: var(--cyan); font-weight: 600; }
+
+main { padding: 16px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
+@media (max-width: 1000px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; margin-bottom: 16px; }
+#map { height: 430px; border-radius: 8px; background: var(--surface-2); }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.table-wrap { overflow-x: auto; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: var(--surface-2); }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-verde, .b-disponibil, .b-finalizat, .b-acceptat { background: var(--ok-soft); color: var(--ok); }
+.b-galben, .b-oferta, .b-in_deplasare { background: var(--warn-soft); color: var(--warn); }
+.b-rosu, .b-cautare, .b-critic { background: var(--err-soft); color: var(--err); }
+.b-gri, .b-indisponibil, .b-odihna, .b-anulat { background: var(--gray-soft); color: var(--muted); }
+.b-pe_tren { background: #dcebfa; color: var(--primary); }
+@media (prefers-color-scheme: dark) { .b-pe_tren { background: #16365a; } }
+
+.bar { height: 6px; border-radius: 3px; background: var(--gray-soft); overflow: hidden; margin-top: 4px; min-width: 90px; }
+.bar > span { display: block; height: 100%; background: var(--ok); }
+.bar.galben > span { background: var(--warn); }
+.bar.rosu > span { background: var(--err); }
+
+.req { border: 1px solid var(--border); border-left: 4px solid var(--warn); border-radius: 8px; padding: 10px; margin-bottom: 10px; background: var(--surface-2); }
+.req.cautare { border-left-color: var(--err); }
+.req.acceptat { border-left-color: var(--ok); }
+.req .top { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 4px; }
+.req .actions { display: flex; gap: 6px; margin-top: 8px; }
+
+.btn { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.btn:hover { border-color: var(--primary); }
+.btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.btn.primary:hover { background: var(--primary-hover); }
+.btn.danger { color: var(--err); }
+.btn.big { width: 100%; padding: 16px; font-size: 18px; font-weight: 700; border-radius: 12px; }
+.btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+
+.events { max-height: 360px; overflow-y: auto; font-size: 13px; }
+.events div { padding: 5px 0; border-bottom: 1px dashed var(--border); }
+.events b { font-variant-numeric: tabular-nums; margin-right: 6px; }
+.ev-critic { color: var(--err); }
+.ev-schimb, .ev-acceptat { color: var(--ok); }
+
+.toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.toolbar input, .toolbar select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+
+/* modal */
+.modal { position: fixed; inset: 0; background: rgba(5, 14, 26, .55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 2000; }
+.modal .card { width: min(720px, 100%); max-height: 85vh; overflow: auto; margin: 0; }
+
+/* login */
+.login { max-width: 360px; margin: 12vh auto; }
+.login input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 16px; }
+.error { color: var(--err); min-height: 20px; }
+
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 8px; z-index: 3000; max-width: calc(100% - 32px); }
+
+/* ===== aplicația mecanicului (telefon) ===== */
+.phone { max-width: 520px; margin: 0 auto; padding: 16px; }
+.me-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.me-head .name { font-size: 18px; font-weight: 700; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch .label { font-size: 18px; font-weight: 700; }
+.toggle { position: relative; width: 64px; height: 36px; border-radius: 18px; background: var(--gray-soft); border: 0; cursor: pointer; flex-shrink: 0; }
+.toggle::after { content: ""; position: absolute; top: 4px; left: 4px; width: 28px; height: 28px; border-radius: 50%; background: #fff; transition: left .15s; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.toggle.on { background: var(--ok); }
+.toggle.on::after { left: 32px; }
+.toggle:disabled { opacity: .5; cursor: not-allowed; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.kv span:nth-child(even) { font-weight: 600; }
+.big-num { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.offer { position: fixed; inset: 0; background: var(--bg); z-index: 2500; display: flex; flex-direction: column; padding: 20px 16px; overflow-y: auto; }
+.offer .inner { max-width: 520px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.offer .title { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.offer .train { font-size: 44px; font-weight: 800; }
+.offer .countdown { font-size: 18px; font-weight: 700; color: var(--warn); }
+.offer .buttons { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: auto; }

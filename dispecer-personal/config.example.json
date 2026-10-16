@@ -1,0 +1,20 @@
+{
+  "sursa": "simulator",
+  "program_max_ore": 12.0,
+  "alerta_inainte_ore": 3.0,
+  "odihna_ore": 12.0,
+  "marja_predare_min": 15.0,
+  "viteza_deplasare_kmh": 60.0,
+  "pregatire_min": 30.0,
+  "raza_max_km": 250.0,
+  "oferta_expira_sec": 90.0,
+  "viteza_ceas": 60.0,
+  "parola_dispecer": "dispecer",
+  "http": {
+    "mers_trenuri_url": "",
+    "inforu_url": "",
+    "personal_url": "",
+    "token": "",
+    "timeout_sec": 10
+  }
+}

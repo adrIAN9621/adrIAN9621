@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dispecer Personal – Carpatica Feroviar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<section id="login" class="login card hidden">
+  <h2>Dispecer Personal</h2>
+  <p class="muted">Autentificare dispecer</p>
+  <input id="pass" type="password" placeholder="Parolă" autocomplete="current-password">
+  <div class="error" id="login-err"></div>
+  <button class="btn primary big" id="login-btn">Intră</button>
+  <p class="small muted">Mecanic sau ajutor? <a href="/mecanic">Deschide aplicația de telefon</a></p>
+</section>
+
+<div id="app" class="hidden">
+  <header class="appbar">
+    <div class="brand"><span class="dot"></span>Dispecer Personal</div>
+    <div class="clock" id="clock">--:--</div>
+    <select id="speed" title="Viteza ceasului (doar în simulator)">
+      <option value="1">timp real</option>
+      <option value="30">×30</option>
+      <option value="60">×60</option>
+      <option value="180">×180</option>
+      <option value="0">pauză</option>
+    </select>
+    <span class="chip" id="source"></span>
+    <div class="spacer"></div>
+    <div class="chips" id="counts"></div>
+    <a href="/mecanic" target="_blank">Aplicația mecanic ↗</a>
+  </header>
+  <nav class="tabs">
+    <button class="tab active" data-tab="live">Trenuri live</button>
+    <button class="tab" data-tab="personal">Personal</button>
+    <button class="tab" data-tab="pontaj">Pontaj</button>
+  </nav>
+
+  <main>
+    <section data-panel="live">
+      <div class="grid">
+        <div>
+          <div class="card"><div id="map"></div></div>
+          <div class="card">
+            <h2>Trenuri și echipaje</h2>
+            <div class="table-wrap"><table>
+              <thead><tr><th>Tren</th><th>Relație</th><th>Poziție</th><th>Întârziere</th><th>Mecanic</th><th>Ajutor</th></tr></thead>
+              <tbody id="trains"></tbody>
+            </table></div>
+          </div>
+        </div>
+        <div>
+          <div class="card">
+            <h2>Cereri de înlocuire</h2>
+            <div id="requests"></div>
+          </div>
+          <div class="card">
+            <h2>Jurnal</h2>
+            <div class="events" id="events"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-panel="personal" class="hidden">
+      <div class="card">
+        <div class="toolbar">
+          <input id="p-search" placeholder="Caută nume / localitate">
+          <select id="p-role"><option value="">toate rolurile</option><option value="mecanic">mecanici</option><option value="ajutor">ajutori</option></select>
+          <select id="p-status"><option value="">toate stările</option><option>disponibil</option><option>indisponibil</option><option>in_deplasare</option><option>pe_tren</option><option>odihna</option></select>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>ID</th><th>Nume</th><th>Rol</th><th>Domiciliu</th><th>Telefon</th><th>Stare</th></tr></thead>
+          <tbody id="people"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <section data-panel="pontaj" class="hidden">
+      <div class="card">
+        <div class="toolbar">
+          <input id="pj-search" placeholder="Caută tren / nume">
+          <a class="btn" id="csv" href="#">Export CSV (RCC)</a>
+          <span class="small muted">Pontajul se face automat din mișcarea trenului raportată de InfoRU.</span>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Tren</th><th>Nume</th><th>Rol</th><th>Început</th><th>Sfârșit</th><th>Ore</th><th>Deplasare</th><th>Sursă</th></tr></thead>
+          <tbody id="pontaj"></tbody>
+        </table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden"><div class="card" id="modal-body"></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/common.js"></script>
+<script src="/static/dispecer.js"></script>
+</body>
+</html>

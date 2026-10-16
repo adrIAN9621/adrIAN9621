@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d2238">
+<title>Comenzi Mecanic – Carpatica Feroviar</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<section id="login" class="login card hidden">
+  <h2>Comenzi tren</h2>
+  <p class="muted">Mecanic / ajutor de mecanic</p>
+  <input id="pid" placeholder="ID personal (ex. M001)" autocapitalize="characters" autocomplete="username">
+  <input id="pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="current-password">
+  <div class="error" id="login-err"></div>
+  <button class="btn primary big" id="login-btn">Intră</button>
+</section>
+
+<div id="app" class="phone hidden">
+  <div class="me-head">
+    <div><div class="name" id="me-name"></div><div class="small muted" id="me-sub"></div></div>
+    <button class="btn" id="logout">Ieșire</button>
+  </div>
+
+  <div class="card switch">
+    <div><div class="label" id="avail-label">Disponibil</div><div class="small muted" id="avail-sub"></div></div>
+    <button class="toggle" id="toggle" aria-label="Disponibil pentru comenzi"></button>
+  </div>
+
+  <div class="card hidden" id="comanda"></div>
+  <div class="card hidden" id="tura"></div>
+
+  <div class="card">
+    <h2>Pontajul meu</h2>
+    <div id="pontaj" class="small"></div>
+  </div>
+</div>
+
+<div id="offer" class="offer hidden"><div class="inner" id="offer-body"></div></div>
+
+<script src="/static/common.js"></script>
+<script src="/static/mecanic.js"></script>
+</body>
+</html>
