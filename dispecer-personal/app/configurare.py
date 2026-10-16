@@ -47,8 +47,11 @@ def main() -> int:
     _save(CMDPERS, cp)
 
     print("=== 2/2  InfoRU ===")
-    ir = _load(INFORU, {"adresa": "", "utilizator": "", "parola": ""})
-    ir["adresa"] = _ask("Adresa InfoRU (ex. http://10.x.x.x/...)", ir["adresa"])
+    from .inforu import ADRESA, POARTA
+    ir = _load(INFORU, {"adresa": "", "poarta": "", "utilizator": "", "parola": ""})
+    ir["adresa"] = ir["adresa"] or ADRESA
+    ir["poarta"] = ir["poarta"] or POARTA
+    print(f"  Pagina cu trenurile: {ir['adresa']}")
     ir["utilizator"] = _ask("Utilizator InfoRU", ir["utilizator"])
     ir["parola"] = _ask_secret("Parolă InfoRU", ir["parola"])
     _save(INFORU, ir)

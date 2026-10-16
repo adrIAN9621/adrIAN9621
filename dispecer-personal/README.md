@@ -65,6 +65,19 @@ Din poziții aplicația deduce singură: trecerile prin stații (traseul trece l
 direcția de mers, viteza medie și stațiile din față cu ora estimată – deci merge și fără mersul trenurilor.
 Până legăm mecanicii din CmdPers se pot pune manual `date-reale/personal.json` și `date-reale/echipaje.json`.
 
+## Date din InfoRU (trenurile Carpatica în circulație) – doar citire
+
+Pagina `https://otf.infofer.ro/CarpaticaFeroviarSA/TrenuriCirculatie_InParcurs` (logare prin pagina proprie
+sau prin poarta `https://auth.infofer.ro`). Clientul e în `app/inforu.py`:
+* o **singură** încercare de logare per pornire – cu parolă greșită nu reîncearcă, deci contul nu se blochează;
+  dacă se cere cod suplimentar (SMS/token) spune asta și se oprește;
+* doar citire: POST doar spre formularul de logare și spre acțiuni de citire (`…_Read`, `Get…`), doar spre
+  gazdele infofer din `inforu.json`; redirecturile spre alte servere sunt refuzate.
+
+`Configureaza-Parole.bat` cere parolele, apoi: `InfoRU-Test.bat` (logare + coloanele găsite),
+`InfoRU-Exploreaza.bat` (scrie `date-reale/explorare-inforu/raport.md` – structura paginii, fără date, de trimis
+pentru legarea în aplicație), `InfoRU-Inregistreaza.bat` (salvează trenurile la 2 minute în `date-reale/inforu/`).
+
 ## Test cu date reale în formatul complet
 
 Scriptul de pe TV wall (care are deja acces la InfoFer și la Comandă) poate **înregistra**
@@ -111,6 +124,8 @@ app/
     locatii.py         poziții locomotive din CmdPers → treceri prin stații, direcție, stații în față
     http_adapters.py   conectarea la sistemele reale
   cmdpers.py         ← client CmdPers: autologin, 2 servere, gardă doar-citire, explorator
+  inforu.py          ← client InfoRU / OTF Infofer: autologin (formular sau NetScaler), doar citire
+  configurare.py     ← cere parolele (Configureaza-Parole.bat)
   matching.py        ← alegerea celui mai apropiat om / stației de schimb
   engine.py          ← motorul: ore lucrate, alerte, oferte, schimb, pontaj automat
   main.py            ← API + pagini

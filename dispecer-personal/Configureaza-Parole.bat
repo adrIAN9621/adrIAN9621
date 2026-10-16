@@ -7,5 +7,7 @@ python -m app.configurare
 if errorlevel 1 goto end
 echo Verific logarea in Comanda Personal...
 python -m app.cmdpers test
+echo Verific logarea in InfoRU...
+python -m app.inforu test
 :end
 pause
