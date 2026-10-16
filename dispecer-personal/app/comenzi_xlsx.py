@@ -24,11 +24,12 @@ REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 
 # coloana din aplicație → cuvinte căutate în antetul din Excel (fără diacritice, litere mici)
 CAMPURI = {
-    "tren": ["nr tren", "numar tren", "tren", "train"],
+    "tren": ["nr tren", "numar tren", "nr. tren", "tren", "train", "circulatie", "nr circ"],
     "persoana": ["mecanic", "nume", "personal", "angajat", "salariat", "conducator"],
     "marca": ["marca", "matricol", "cod angajat", "id angajat", "cnp"],
     "rol": ["functie", "functia", "rol", "post", "calitate"],
-    "inceput": ["prezentare", "inceput", "luare in primire", "ora comanda", "data comanda", "start", "de la"],
+    "inceput": ["prezentare", "inceput", "luare in primire", "ora comanda", "data comanda", "start", "de la",
+                "data ora", "ora", "data"],
     "statie": ["statie", "statia", "loc prezentare", "loc", "punct"],
     "locomotiva": ["locomotiva", "loc.", "loco"],
 }
@@ -94,6 +95,36 @@ def _ora(v: str) -> Optional[datetime]:
     return None
 
 
+def _e_numar(v: str) -> bool:
+    try:
+        float(v)
+        return True
+    except ValueError:
+        return False
+
+
+def gaseste_antet(rows: list[list[str]]) -> int:
+    """Rândul cu antetul: primul (din primele 20) cu ≥3 celule de text, urmat de un rând cu date.
+    Titlul de deasupra („Comenzi Active (…)”) are o singură celulă, deci e sărit."""
+    for i, r in enumerate(rows[:20]):
+        cells = [c for c in r if c]
+        if len(cells) >= 3 and all(not _e_numar(c) for c in cells) and i + 1 < len(rows) \
+                and sum(1 for c in rows[i + 1] if c) >= 3:
+            return i
+    return 0
+
+
+def tip(v: str) -> str:
+    """Tipul unei valori, fără valoarea însăși (pentru afișare fără nume)."""
+    if not v:
+        return "gol"
+    if _ora(v):
+        return "dată/oră"
+    if _e_numar(v):
+        return "număr"
+    return "text"
+
+
 def potriveste_coloane(header: list[str]) -> dict[str, int]:
     found: dict[str, int] = {}
     hn = [_norm(h) for h in header]
@@ -112,8 +143,7 @@ def potriveste_coloane(header: list[str]) -> dict[str, int]:
 
 def importa(path: Path, folder: Path) -> dict:
     rows = citeste_xlsx(path)
-    hdr_i = next((i for i, r in enumerate(rows[:15]) if sum(1 for c in r if c) >= 3
-                  and any("tren" in _norm(c) for c in r)), 0)
+    hdr_i = gaseste_antet(rows)
     header, data = rows[hdr_i], [r for r in rows[hdr_i + 1:] if any(r)]
     cols = potriveste_coloane(header)
     records = [dict(zip(header, r + [""] * (len(header) - len(r)))) for r in data]
@@ -137,7 +167,9 @@ def importa(path: Path, folder: Path) -> dict:
                              "rol": rol, "inceput": start.isoformat(), "statie": get("statie"),
                              "locomotiva": get("locomotiva")})
         (folder / "echipaje.json").write_text(json.dumps(echipaje, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"antet": header, "coloane": cols, "randuri": len(data), "echipaje": len(echipaje), "sarite": sarite}
+    exemplu = [tip(v) for v in data[0]] if data else []
+    return {"antet": header, "coloane": cols, "randuri": len(data), "echipaje": len(echipaje), "sarite": sarite,
+            "rand_antet": hdr_i + 1, "tipuri": exemplu}
 
 
 def cel_mai_nou() -> Optional[Path]:
@@ -154,7 +186,9 @@ def main(argv: list[str]) -> int:
     r = importa(path, folder)
     print(f"Fișier: {path}")
     print(f"Rânduri (comenzi): {r['randuri']}")
-    print("Coloane din Excel:", " | ".join(r["antet"]))
+    print(f"Antetul e pe rândul {r['rand_antet']}. Coloane (tipul valorilor din primul rând, fără valori):")
+    for i, h in enumerate(r["antet"]):
+        print(f"  {i + 1:>2}. {h or '(fără nume)'}  [{r['tipuri'][i] if i < len(r['tipuri']) else '–'}]")
     print("Cum le-am înțeles:")
     for camp in CAMPURI:
         i = r["coloane"].get(camp)

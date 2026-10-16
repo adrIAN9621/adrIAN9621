@@ -36,6 +36,10 @@ ACTIVE = """<html><head><title>Comenzi active</title></head><body>
 <tr><td>Popescu Ion</td><td>MEC</td><td>584280</td><td>91530401234</td><td>16.10.2026 08:00</td><td>Constanta</td></tr>
 </table><a href="/cmdpers_carpatica/ActiveOrders/Close/5">Inchide</a></body></html>"""
 
+EXPORT = {"on": False, "bytes": b""}
+ACTIVE_EXPORT = """<html><head><title>Comenzi Resurse/Comenzi Active</title></head><body>
+<table id="grid"></table><a href="/cmdpers_carpatica/ActiveOrders/ExportExcel">Export Excel</a></body></html>"""
+
 LOC_PAGE = """<html><head><title>Locatii</title></head><body>
 <input name="__RequestVerificationToken" type="hidden" value="tok123"></body></html>"""
 
@@ -68,7 +72,15 @@ class Fake(BaseHTTPRequestHandler):
         if "LocomotiveEngineer" in path or path.rstrip("/").endswith("cmdpers_carpatica"):
             return self._send(200, ENGINEERS)
         if path.endswith("/ActiveOrders/Index"):
-            return self._send(200, ACTIVE)
+            return self._send(200, ACTIVE_EXPORT if EXPORT.get("on") else ACTIVE)
+        if path.endswith("/ActiveOrders/ExportExcel"):
+            data = EXPORT["bytes"]
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if "LocomotiveLocation" in path:
             return self._send(200, LOC_PAGE)
         return self._send(404, "nu")
@@ -215,3 +227,17 @@ def test_active_orders_table(server):
     cols, rows, jurnal = cp.comenzi_active()
     assert cols[:3] == ["Mecanic", "Functie", "Tren"] and rows[0]["Tren"] == "584280"
     assert not any("Close" in p for _, p in HITS)
+
+
+def test_active_orders_via_excel_export(server, tmp_path):
+    from tests.test_inforu import _xlsx
+    f = tmp_path / "e.xlsx"
+    _xlsx(f, [["Comenzi Active (2026_10_17_0043)"], ["Nume", "Functie", "Tren", "Prezentare"],
+              ["Popescu Ion", "Mecanic", "584280", "16.10.2026 18:00"]])
+    EXPORT.update(on=True, bytes=f.read_bytes())
+    try:
+        cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+        cols, rows, jurnal = cp.comenzi_active()
+        assert cols == ["Nume", "Functie", "Tren", "Prezentare"] and rows[0]["Tren"] == "584280"
+    finally:
+        EXPORT["on"] = False

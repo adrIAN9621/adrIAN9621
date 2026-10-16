@@ -218,6 +218,18 @@ class CmdPers:
     def get(self, path: str) -> str:
         return self.request("GET", path)[2]
 
+    def descarca(self, path: str, referer: Optional[str] = None) -> tuple[str, bytes]:
+        """GET pentru fișiere (ex. exportul Excel) – aceeași gardă, conținutul păstrat ca bytes."""
+        self._ensure()
+        url = self._url(path)
+        self._verifica("GET", url)
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("User-Agent", UA)
+        if referer:
+            req.add_header("Referer", self._url(referer))
+        with self.opener.open(req, timeout=self.timeout) as r:
+            return r.headers.get("Content-Type", ""), r.read()
+
     def search(self, page: str, action: str, data: dict) -> Any:
         """Ca în browser: deschide pagina (pentru token CSRF) și trimite căutarea AJAX."""
         text = self.get(page)
@@ -250,10 +262,50 @@ class CmdPers:
             rows = best["rows"]
             cols = best["headers"] or [f"col{i + 1}" for i in range(len(rows[0]))]
             return cols, [dict(zip(cols, r)) for r in rows], jurnal
+        for t in page.tables:
+            jurnal.append(f"tabel id=„{t['id']}”: {len(t['headers'])} coloane în antet, {len(t['rows'])} rânduri"
+                          + (f" – {' | '.join(t['headers'])}" if t["headers"] else ""))
+        # 1) exportul Excel din pagină (același fișier ca butonul din browser)
+        for href, label in page.links:
+            if re.search(r"xls|excel|export", href + " " + label, re.I):
+                p = _norm_link(href, self._url(page_path))
+                if not p:
+                    continue
+                jurnal.append(f"link export: „{label.strip()}” → {p.split('?')[0]}")
+                try:
+                    ct, data = self.descarca(p, referer=page_path)
+                except Exception as e:
+                    jurnal.append(f"  descărcare eșuată: {e}")
+                    continue
+                if data[:2] == b"PK":  # fișier .xlsx
+                    import tempfile
+                    from .comenzi_xlsx import citeste_xlsx, gaseste_antet
+                    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
+                        f.write(data)
+                    rows = citeste_xlsx(Path(f.name))
+                    Path(f.name).unlink(missing_ok=True)
+                    h = gaseste_antet(rows)
+                    hdr, body = rows[h], [r for r in rows[h + 1:] if any(r)]
+                    jurnal.append(f"  Excel descărcat: {len(body)} rânduri")
+                    return hdr, [dict(zip(hdr, r)) for r in body], jurnal
+                jurnal.append(f"  nu e Excel ({ct})")
+        # 2) cererea AJAX care umple tabelul – din scripturile paginii și din fișierele .js ale aplicației
+        scripts_text = list(page.scripts)
+        for s in page.scripts:
+            if s.startswith("@src "):
+                src = _norm_link(s[5:].strip(), self._url(page_path))
+                if src and "jquery" not in src.lower() and "bootstrap" not in src.lower():
+                    try:
+                        scripts_text.append(self.get(src))
+                    except Exception:
+                        pass
+        page.scripts = scripts_text
+        found = ajax_urls(page)
+        jurnal.append("URL-uri găsite în scripturi: " + (", ".join(u for u in found if "order" in u.lower()) or "–"))
         token = csrf_token(text)
-        for u in ajax_urls(page):
+        for u in found:
             path = urllib.parse.urlsplit(u).path
-            if "activeorder" not in path.lower():
+            if "order" not in path.lower():
                 continue
             for method in ("POST", "GET"):
                 try:
