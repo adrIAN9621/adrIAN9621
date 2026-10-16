@@ -377,6 +377,13 @@ def main(argv: list[str]) -> int:
             cols, rows = ir.trenuri()
             print(f"OK – logat. {len(rows)} trenuri în circulație.")
             print("Coloane:", " | ".join(cols) or "(nu am găsit tabelul – rulați InfoRU-Exploreaza.bat)")
+            if not rows:
+                final, text = ir.get_page()
+                page = parse_page(text)
+                print(f"Pagina primită: „{page.title.strip()}” – {urllib.parse.urlsplit(final).netloc}"
+                      f"{urllib.parse.urlsplit(final).path} ({len(text)} caractere, {len(page.tables)} tabele, "
+                      f"{len(page.forms)} formulare)")
+                print("Pașii logării:", *ir.pasi, sep="\n  ")
         elif cmd == "explora":
             print("Raport:", explore(ir, folder / "explorare-inforu"))
         else:
