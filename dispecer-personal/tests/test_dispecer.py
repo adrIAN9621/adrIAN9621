@@ -201,3 +201,74 @@ def test_http_read_only_blocks_writes():
     ro = ReadOnly(Boom())
     ro.push_pontaj({})
     ro.push_comanda({})
+
+
+# --------------------------------------------- poziții CmdPers (laptop_proxy)
+def _cmdpers_folder(tmp_path):
+    import json
+    from datetime import datetime
+    from app.geo import STATIONS
+    from app.integrations.simulator import Simulator
+
+    d = tmp_path / "cmdpers"
+    (d / "locatii").mkdir(parents=True)
+    sim = Simulator(T0)
+    (d / "personal.json").write_text(json.dumps([
+        {"id": p.id, "nume": p.name, "rol": p.role, "lat": p.lat, "lon": p.lon, "localitate": p.home_city}
+        for p in sim.people()]), encoding="utf-8")
+    iso = lambda t: datetime.fromtimestamp(t).isoformat()
+    # echipajul a luat trenul cu 10 h înainte, în București Nord
+    (d / "echipaje.json").write_text(json.dumps([
+        {"tren": "50001", "id_personal": "M001", "rol": "mecanic", "inceput": iso(T0 - 10 * H), "statie": "București Nord"},
+        {"tren": "50001", "id_personal": "A001", "rol": "ajutor", "inceput": iso(T0 - 10 * H), "statie": "București Nord"},
+    ]), encoding="utf-8")
+    route = ["BN", "PV", "CP", "PR", "BV", "SG"]
+    legs = []
+    t = T0
+    for a, b in zip(route, route[1:]):
+        _, la, lo = STATIONS[a]
+        _, lb, lob = STATIONS[b]
+        dur = 50 * 60
+        legs.append((t, t + dur, la, lo, lb, lob))
+        t += dur
+    k = 0
+    for t0, t1, la, lo, lb, lob in legs:
+        for s in range(0, int(t1 - t0), 120):
+            f = s / (t1 - t0)
+            ts = t0 + s
+            item = {"LocomotiveNumber": "91530401234", "Lat": str(la + (lb - la) * f), "Lng": lo + (lob - lo) * f,
+                    "Timestamp": iso(ts), "Source": "GPS", "TrainInfo": [{"TrainNumber": "50001"}]}
+            other = {"LocomotiveNumber": "X", "Lat": 0, "Lng": 0, "TrainInfo": []}  # fără tren / fără GPS
+            (d / "locatii" / f"{k:06d}.json").write_text(json.dumps(
+                {"ora": iso(ts), "date": {"data": [item, other]}}), encoding="utf-8")
+            k += 1
+    return d
+
+
+def test_cmdpers_positions_drive_handover_and_pontaj(tmp_path):
+    from app.integrations.locatii import LocatiiSource
+
+    folder = _cmdpers_folder(tmp_path)
+    src = LocatiiSource(folder, replay=True)
+    clock = ManualClock(src.start_time() + 20 * 60)
+    eng = Engine(Config(sursa="cmdpers"), DB(), clock, src, src, src)
+    eng.online = {p.id: time.time() for p in src.people()}
+    eng.bootstrap()
+
+    tt, lv = eng.timetables["50001"], eng.live["50001"]
+    assert "BN" in lv.passed and lv.status == "in_mers"
+    ahead = tt.route[1:-1]
+    assert ahead[0] == "PV" and "BV" in ahead and "CR" not in ahead  # doar în direcția de mers
+
+    off = eng.db.one("SELECT * FROM offers WHERE status='trimisa' AND person_id LIKE 'M%'")
+    assert off, "cu 2 h rămase din program trebuie căutat mecanic"
+    eng.answer(off["id"], off["person_id"], True)
+    for _ in range(80):
+        clock.advance(120)
+        eng.tick()
+    req = eng.db.one("SELECT * FROM requests WHERE id=?", [off["request_id"]])
+    assert req["status"] == "finalizat"
+    old = eng.db.one("SELECT * FROM pontaj WHERE person_id='M001'")
+    new = eng.db.one("SELECT * FROM pontaj WHERE person_id=?", [off["person_id"]])
+    assert old["active"] == 0 and old["end_station"] == off["station"]
+    assert new["start"] == old["end"] and new["start_station"] == off["station"]

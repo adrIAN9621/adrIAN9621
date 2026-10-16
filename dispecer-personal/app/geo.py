@@ -68,3 +68,30 @@ def travel_minutes(km: float, speed_kmh: float, prep_min: float) -> float:
 
 def station_name(code: str) -> str:
     return STATIONS.get(code, (code, 0, 0))[0]
+
+
+def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Direcția de mers (0 = nord, 90 = est)."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dl = math.radians(lon2 - lon1)
+    x = math.sin(dl) * math.cos(p2)
+    y = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    return (math.degrees(math.atan2(x, y)) + 360) % 360
+
+
+def angle_diff(a: float, b: float) -> float:
+    return abs((a - b + 180) % 360 - 180)
+
+
+def closest_on_segment(lat1: float, lon1: float, lat2: float, lon2: float,
+                       plat: float, plon: float) -> tuple[float, float]:
+    """(distanța minimă în km de la punct la segment, fracția 0..1 pe segment) – aproximare plană."""
+    kx = 111.32 * math.cos(math.radians((lat1 + lat2) / 2))
+    ky = 110.57
+    ax, ay = 0.0, 0.0
+    bx, by = (lon2 - lon1) * kx, (lat2 - lat1) * ky
+    px, py = (plon - lon1) * kx, (plat - lat1) * ky
+    seg = bx * bx + by * by
+    f = 0.0 if seg == 0 else max(0.0, min(1.0, (px * bx + py * by) / seg))
+    dx, dy = px - (ax + f * bx), py - (ay + f * by)
+    return math.hypot(dx, dy), f

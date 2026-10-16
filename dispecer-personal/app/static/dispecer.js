@@ -47,7 +47,7 @@ function drawMap() {
   for (const t of state.trains) {
     if (t.status === "sosit") continue;
     const color = COLORS[t.nivel];
-    L.polyline(t.route.map(c => [st[c].lat, st[c].lon]), { color, weight: 2, opacity: .35, dashArray: "4 6" }).addTo(layers.routes);
+    L.polyline(t.route.filter(c => st[c]).map(c => [st[c].lat, st[c].lon]), { color, weight: 2, opacity: .35, dashArray: "4 6" }).addTo(layers.routes);
     const icon = L.divIcon({
       className: "",
       html: `<div style="background:${color};color:#fff;font-weight:700;font-size:11px;padding:2px 6px;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap">${esc(t.train)}</div>`,
@@ -60,7 +60,7 @@ function drawMap() {
     const h = handover[t.train];
     if (h) {
       const s = st[h.station];
-      L.circleMarker([s.lat, s.lon], { radius: 9, color, weight: 3, fill: false })
+      if (s) L.circleMarker([s.lat, s.lon], { radius: 9, color, weight: 3, fill: false })
         .bindTooltip(`Schimb tren ${esc(t.train)} în ${esc(s.name)} la ${hm(h.eta)}`).addTo(layers.routes);
     }
   }
@@ -151,7 +151,7 @@ function renderEvents() {
 
 function renderHeader() {
   $("#clock").textContent = new Date(state.now * 1000).toLocaleString("ro-RO", { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  $("#source").textContent = { simulator: "SIMULATOR", fisiere: "TEST · date reale, doar citire", http: "LIVE" }[state.sursa] || state.sursa;
+  $("#source").textContent = { simulator: "SIMULATOR", fisiere: "TEST · date reale, doar citire", cmdpers: "TEST · CmdPers, doar citire", http: "LIVE" }[state.sursa] || state.sursa;
   const sp = $("#speed");
   sp.classList.toggle("hidden", state.sursa === "http");
   if (document.activeElement !== sp) sp.value = String(state.viteza);

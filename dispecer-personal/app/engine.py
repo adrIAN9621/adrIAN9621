@@ -226,6 +226,8 @@ class Engine:
                 self._cancel_request(r, "trenul a trecut de stația de schimb")
             return
         t = lv.passed[r["station"]]
+        if t < r["created"] - 600:
+            return  # trecere veche prin aceeași stație (alt drum), nu schimbul acesta
         old = self.db.one("SELECT * FROM pontaj WHERE id=?", [r["pontaj_id"]])
         if old and old["active"]:
             self._close_pontaj(old, t, r["station"])

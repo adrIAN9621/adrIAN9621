@@ -11,6 +11,9 @@ from .integrations.fisiere import FileSource, _read
 
 
 def main(folder: str) -> int:
+    from pathlib import Path
+    if (Path(folder) / "locatii").is_dir():
+        return main_locatii(folder)
     try:
         src = FileSource(folder, replay=True)
     except Exception as e:
@@ -35,6 +38,36 @@ def main(folder: str) -> int:
     if len(src.warnings) > 50:
         print(f"... încă {len(src.warnings) - 50} avertismente")
     return 0
+
+
+def main_locatii(folder: str) -> int:
+    from .integrations.locatii import LocatiiSource
+    try:
+        src = LocatiiSource(folder, replay=True)
+    except Exception as e:
+        print("EROARE:", e)
+        return 1
+    t0, t1 = src._times[0], src._times[-1]
+    fmt = lambda t: time.strftime("%d.%m %H:%M", time.localtime(t))
+    print(f"Înregistrări CmdPers: {len(src._times)}  ({fmt(t0)} → {fmt(t1)})")
+    print(f"Trenuri cu poziții: {len(src._tracks)}")
+    state = src._state(t1)
+    for n, s in sorted(state.items())[:40]:
+        lv, tt = s["live"], s["tt"]
+        trecut = sorted(lv.passed.items(), key=lambda kv: kv[1])
+        trecut = [f"{src_name(c)} {time.strftime('%H:%M', time.localtime(t))}" for c, t in trecut if not c.startswith("@")]
+        fata = [src_name(st.station) for st in tt.stops[1:-1][:3]]
+        print(f"  tren {n:>7} {tt.kind:<14} {lv.status:<9} {lv.speed_kmh:>3} km/h | trecut: {', '.join(trecut[-3:]) or '–'}"
+              f" | în față: {', '.join(fata) or '–'}")
+    print(f"Personal: {len(src.people())} · echipaje: {len(src._crews)}")
+    for w in src.warnings[:50]:
+        print("ATENȚIE:", w)
+    return 0
+
+
+def src_name(code: str) -> str:
+    from .geo import station_name
+    return station_name(code)
 
 
 if __name__ == "__main__":

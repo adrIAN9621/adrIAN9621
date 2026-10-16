@@ -38,7 +38,24 @@ Implicit rulează pe **simulator** (8 trenuri de marfă pe rute reale, 60 de oam
 
 Ca să fie accesibilă de pe telefoane în rețea: `DISPECER_HOST=0.0.0.0` înainte de pornire.
 
-## Test cu date reale, fără să atingem producția
+## Test cu date reale din CmdPers (TV wall) – doar citire
+
+`laptop_proxy.py` de pe TV wall e deja logat în CmdPers și aduce la fiecare 60 s pozițiile
+locomotivelor (cu numărul trenului) la `http://<laptop>:8765/api/locations`.
+
+1. Pe laptopul cu `laptop_proxy.py` pornit, rulați `instrumente/Inregistreaza-CmdPers.bat`
+   (sau `python instrumente/inregistreaza_cmdpers.py --url http://<laptop>:8765/api/locations`).
+   Face doar GET la `/api/locations` → **nicio cerere în plus spre CmdPers**; salvează în `date-reale/locatii/`.
+   Lăsați-l să meargă câteva ore (o tură întreagă e ideal).
+2. `python -m app.verifica date-reale` – arată pentru fiecare tren stațiile prin care a trecut și cele din față.
+3. Opțional, în `date-reale/`: `personal.json` (oamenii cu domiciliul) și `echipaje.json`
+   (cine e pe ce tren și de la ce oră). Fără ele se văd trenurile, trecerile și direcția, dar nu se caută înlocuitori.
+4. `config.json`: `{"sursa": "cmdpers", "fisiere": {"dosar": "date-reale", "reluare": true}}` și porniți aplicația.
+
+Din poziții aplicația deduce singură: trecerile prin stații (traseul trece la < 3 km de stație),
+direcția de mers, viteza medie și stațiile din față cu ora estimată – deci merge și fără mersul trenurilor.
+
+## Test cu date reale în formatul complet
 
 Scriptul de pe TV wall (care are deja acces la InfoFer și la Comandă) poate **înregistra**
 ce vede într-un dosar; aplicația **doar citește** dosarul și rulează în paralel, „în umbră”.
@@ -63,7 +80,7 @@ Copiază `config.example.json` în `config.json` și modifică ce trebuie:
 
 | Cheie | Implicit | Ce înseamnă |
 |---|---|---|
-| `sursa` | `simulator` | `fisiere` = date reale înregistrate (test), `http` = sistemele reale (vezi INTEGRARE.md) |
+| `sursa` | `simulator` | `cmdpers` = poziții înregistrate din CmdPers, `fisiere` = date reale în formatul complet, `http` = sistemele reale |
 | `doar_citire` | `true` | nu trimite nimic spre sistemele externe |
 | `program_max_ore` | 12 | durata maximă a programului |
 | `alerta_inainte_ore` | 3 | când începe căutarea înlocuitorului |
@@ -81,6 +98,7 @@ app/
   integrations/      ← câte un adaptor pe sistem (Mersul Trenurilor, InfoRU, Comandă personal/SIT/RCC)
     simulator.py       date demo
     fisiere.py         date reale înregistrate (doar citire)
+    locatii.py         poziții locomotive din CmdPers → treceri prin stații, direcție, stații în față
     http_adapters.py   conectarea la sistemele reale
   matching.py        ← alegerea celui mai apropiat om / stației de schimb
   engine.py          ← motorul: ore lucrate, alerte, oferte, schimb, pontaj automat

@@ -8,12 +8,13 @@ from .base import CrewAssignment, InfoRU, LivePosition, MersTrenuri, Person, Per
 
 def build(cfg: Config, start: float):
     """Întoarce (mers_trenuri, inforu, personal) după sursa configurată."""
+    if cfg.sursa == "cmdpers":
+        from .locatii import LocatiiSource
+        src = LocatiiSource(_folder(cfg), bool(cfg.fisiere.get("reluare", True)))
+        return src, src, src
     if cfg.sursa == "fisiere":
         from .fisiere import FileSource
-        folder = Path(cfg.fisiere.get("dosar", "date-reale"))
-        if not folder.is_absolute():
-            folder = Path(__file__).resolve().parents[2] / folder
-        src = FileSource(folder, bool(cfg.fisiere.get("reluare", True)))
+        src = FileSource(_folder(cfg), bool(cfg.fisiere.get("reluare", True)))
         return src, src, src
     if cfg.sursa == "http":
         from .http_adapters import HttpInfoRU, HttpMersTrenuri, HttpPersonal
@@ -24,6 +25,11 @@ def build(cfg: Config, start: float):
     from .simulator import Simulator
     sim = Simulator(start)
     return sim, sim, sim
+
+
+def _folder(cfg: Config) -> Path:
+    folder = Path(cfg.fisiere.get("dosar", "date-reale"))
+    return folder if folder.is_absolute() else Path(__file__).resolve().parents[2] / folder
 
 
 class ReadOnly:
