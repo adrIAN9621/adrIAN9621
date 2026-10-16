@@ -1,9 +1,8 @@
 """Date reale din CmdPers – pozițiile locomotivelor (GetLatestLocation), DOAR CITIRE.
 
-Sursa e `laptop_proxy.py` de pe TV wall: el e logat în CmdPers și expune ultimele
-poziții la `/api/locations`. `instrumente/inregistreaza_cmdpers.py` le salvează
-periodic în `<dosar>/locatii/`, iar acest modul le transformă în ce are nevoie
-aplicația, fără mersul trenurilor:
+Pozițiile vin direct din CmdPers prin `app/cmdpers.py` (autologin): live cu
+`CmdPersLive` sau înregistrate în `<dosar>/locatii/` (`python -m app.cmdpers inregistreaza`).
+Acest modul le transformă în ce are nevoie aplicația, fără mersul trenurilor:
 
   * traseul fiecărui tren (din pozițiile succesive ale locomotivei)
   * trecerile prin stații (când traseul trece la mai puțin de `raza_statie_km`)
@@ -47,7 +46,7 @@ class Point:
 
 
 def parse_items(raw: Any) -> list[dict]:
-    """Răspunsul GetLatestLocation poate fi listă sau {data: [...]} – ca în laptop_proxy."""
+    """Răspunsul GetLatestLocation poate fi listă sau {data: [...]}."""
     if isinstance(raw, str):
         raw = json.loads(raw) if raw.strip() else []
     if isinstance(raw, dict):
@@ -68,10 +67,14 @@ def train_numbers(item: dict) -> list[str]:
 
 
 class LocatiiSource(FileSource):
+    cere_date = True
+
     def __init__(self, folder: str | Path, replay: bool = True):
         self.dir = Path(folder)
         if not self.dir.is_dir():
-            raise ValueError(f"Dosarul cu date reale nu există: {self.dir}")
+            if self.cere_date:
+                raise ValueError(f"Dosarul cu date reale nu există: {self.dir}")
+            self.dir.mkdir(parents=True)
         self.replay = replay
         self.warnings: list[str] = []
         self._load_stations()
@@ -82,10 +85,10 @@ class LocatiiSource(FileSource):
         self._seen: set[Path] = set()
         self._tracks: dict[str, list[Point]] = {}
         self._times: list[float] = []
-        self._scan()
-        if not self._times:
-            raise ValueError(f"Nu există înregistrări în {self.dir / 'locatii'}")
         self._memo: tuple[float, dict] = (-1.0, {})
+        self._scan()
+        if not self._times and self.cere_date:
+            raise ValueError(f"Nu există înregistrări în {self.dir / 'locatii'}")
 
     # ------------------------------------------------------- încărcare
     def _load_crews(self) -> list[CrewAssignment]:
@@ -115,27 +118,30 @@ class LocatiiSource(FileSource):
             except Exception as e:  # fișier stricat – îl sărim
                 self.warnings.append(f"Înregistrare ilizibilă {p.name}: {e}")
                 continue
-            self._times.append(t_snap)
-            for it in items:
-                try:
-                    lat, lon = float(it.get("Lat") or 0), float(it.get("Lng") or 0)
-                except (TypeError, ValueError):
-                    continue
-                if not lat or not lon:
-                    continue
-                try:
-                    t = _ts(it.get("Timestamp")) or t_snap
-                except ValueError:
-                    t = t_snap
-                t = min(t, t_snap)
-                for n in train_numbers(it):
-                    tr = self._tracks.setdefault(n, [])
-                    if tr and tr[-1].t >= t:
-                        continue  # aceeași poziție raportată din nou
-                    tr.append(Point(t, lat, lon, str(it.get("LocomotiveNumber") or "")))
+            self._ingest(t_snap, items)
         self._times.sort()
         for tr in self._tracks.values():
             tr.sort(key=lambda p: p.t)
+
+    def _ingest(self, t_snap: float, items: list[dict]) -> None:
+        self._times.append(t_snap)
+        for it in items:
+            try:
+                lat, lon = float(it.get("Lat") or 0), float(it.get("Lng") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not lat or not lon:
+                continue
+            try:
+                t = _ts(it.get("Timestamp")) or t_snap
+            except ValueError:
+                t = t_snap
+            t = min(t, t_snap)
+            for n in train_numbers(it):
+                tr = self._tracks.setdefault(n, [])
+                if tr and tr[-1].t >= t:
+                    continue  # aceeași poziție raportată din nou
+                tr.append(Point(t, lat, lon, str(it.get("LocomotiveNumber") or "")))
 
     def start_time(self) -> float:
         return self._times[0]
@@ -238,3 +244,47 @@ class LocatiiSource(FileSource):
 
     def crews(self, now: float) -> list[CrewAssignment]:
         return [c for c in self._crews if c.start <= now]
+
+
+class CmdPersLive(LocatiiSource):
+    """Pozițiile vin direct din CmdPers (autologin, doar citire).
+
+    La fiecare `interval` secunde se cere GetLatestLocation; fiecare răspuns se salvează și în
+    `<dosar>/locatii/`, ca ziua să poată fi reluată apoi în modul test.
+    """
+    cere_date = False
+
+    def __init__(self, folder: str | Path, client, interval: float = 60.0):
+        self.client = client
+        self.interval = interval
+        self._last_fetch = 0.0
+        super().__init__(folder, replay=True)
+
+    def _poll(self, now: float) -> None:
+        import time as _time
+        if _time.time() - self._last_fetch < self.interval:
+            return
+        self._last_fetch = _time.time()
+        try:
+            items = self.client.locations()
+        except Exception as e:
+            self.warnings.append(f"CmdPers: {e}")
+            return
+        d = self.dir / "locatii"
+        d.mkdir(exist_ok=True)
+        from datetime import datetime
+        ts = datetime.fromtimestamp(now).replace(microsecond=0)
+        path = d / f"{ts:%Y-%m-%dT%H-%M-%S}.json"
+        path.write_text(json.dumps({"ora": ts.isoformat(), "sursa": self.client.server, "date": items},
+                                   ensure_ascii=False), encoding="utf-8")
+        self._seen.add(path)
+        self._ingest(now, items)
+        self._memo = (-1.0, {})
+
+    def _state(self, now: float) -> dict:
+        self._poll(now)
+        return super()._state(now)
+
+    def start_time(self) -> float:
+        import time as _time
+        return _time.time()

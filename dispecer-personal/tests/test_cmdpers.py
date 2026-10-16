@@ -1,0 +1,149 @@
+"""Clientul CmdPers contra unui server CmdPers fals (login + CSRF + cookie + căutări)."""
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+
+from app import cmdpers
+
+HITS = []
+SESSIONS = set()
+
+LOGIN_PAGE = """<html><head><title>Login</title></head><body><form action="/cmdpers_carpatica/Account/Login" method="post">
+<input name="__RequestVerificationToken" type="hidden" value="tok123">
+<input name="UserName"><input name="Password" type="password"></form></body></html>"""
+
+ENGINEERS = """<html><head><title>Mecanici</title></head><body>
+<a href="/cmdpers_carpatica/LocomotiveLocation/Index">Harta</a>
+<a href="/cmdpers_carpatica/Account/LogOff">Ieșire</a>
+<a href="/cmdpers_carpatica/LocomotiveEngineer/Delete/5">Șterge</a>
+<a href="/cmdpers_carpatica/LocomotiveEngineer/Activities?id=5">Activități</a>
+<form action="/cmdpers_carpatica/LocomotiveEngineer/Search" method="post"><input name="nume"><input name="data"></form>
+<table id="grid"><tr><th>Nume</th><th>Tren</th><th>Început</th></tr>
+<tr><td>Popescu Ion</td><td>50421</td><td>16.10.2026 08:00</td></tr></table>
+<script>$.post('/cmdpers_carpatica/LocomotiveEngineer/GetActivities', {id: 5});</script>
+</body></html>"""
+
+LOC_PAGE = """<html><head><title>Locatii</title></head><body>
+<input name="__RequestVerificationToken" type="hidden" value="tok123"></body></html>"""
+
+
+class Fake(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _logged(self):
+        c = self.headers.get("Cookie", "")
+        return any(f"sess={s}" in c for s in SESSIONS)
+
+    def _send(self, code, body, ctype="text/html; charset=utf-8", headers=()):
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        for k, v in headers:
+            self.send_header(k, v)
+        data = body.encode()
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        HITS.append(("GET", self.path))
+        path = urlparse(self.path).path
+        if path.endswith("/Account/Login"):
+            return self._send(200, LOGIN_PAGE)
+        if not self._logged():
+            return self._send(302, "", headers=[("Location", "/cmdpers_carpatica/Account/Login")])
+        if "LocomotiveEngineer" in path or path.rstrip("/").endswith("cmdpers_carpatica"):
+            return self._send(200, ENGINEERS)
+        if "LocomotiveLocation" in path:
+            return self._send(200, LOC_PAGE)
+        return self._send(404, "nu")
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        form = parse_qs(self.rfile.read(n).decode())
+        HITS.append(("POST", self.path))
+        if self.path.endswith("/Account/Login"):
+            if form.get("UserName") == ["ion"] and form.get("Password") == ["secret"] and form.get("__RequestVerificationToken") == ["tok123"]:
+                SESSIONS.add("abc")
+                return self._send(302, "", headers=[("Set-Cookie", "sess=abc; Path=/"), ("Location", "/cmdpers_carpatica/")])
+            return self._send(200, LOGIN_PAGE)
+        if not self._logged():
+            return self._send(302, "", headers=[("Location", "/cmdpers_carpatica/Account/Login")])
+        if self.path.endswith("/GetLatestLocation"):
+            assert form.get("__RequestVerificationToken") == ["tok123"]
+            data = [{"LocomotiveNumber": "91530401234", "Lat": "45.66", "Lng": "25.61",
+                     "Timestamp": "2026-10-16T19:00:00", "TrainInfo": [{"TrainNumber": "50421"}]}]
+            return self._send(200, json.dumps(data), "application/json")
+        return self._send(500, "nu ar fi trebuit")
+
+
+@pytest.fixture()
+def server():
+    HITS.clear()
+    SESSIONS.clear()
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Fake)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{srv.server_address[1]}"
+    srv.shutdown()
+
+
+def test_login_falls_back_to_second_server(server):
+    cp = cmdpers.CmdPers("ion", "secret", ["http://127.0.0.1:9", server], timeout=3)
+    assert cp.login() == server
+
+
+def test_wrong_password(server):
+    with pytest.raises(cmdpers.LoginEsuat):
+        cmdpers.CmdPers("ion", "gresit", [server], timeout=3).login()
+
+
+def test_locations_and_relogin_after_expiry(server):
+    cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+    items = cp.locations()
+    assert items[0]["TrainInfo"][0]["TrainNumber"] == "50421"
+    SESSIONS.clear()  # sesiunea expiră pe server
+    assert cp.locations()[0]["LocomotiveNumber"] == "91530401234"
+
+
+def test_write_requests_are_blocked_before_sending(server):
+    cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+    cp.login()
+    for path in ("/LocomotiveEngineer/Save", "/LocomotiveEngineer/Delete", "/Comanda/Create", "/X/SetStatus"):
+        with pytest.raises(cmdpers.Refuzat):
+            cp.request("POST", path, {"a": 1})
+    assert not any(p.endswith(("Save", "Delete", "Create", "SetStatus")) for _, p in HITS)
+
+
+def test_explore_reports_structure_without_unsafe_links(server, tmp_path):
+    cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+    cp.login()
+    report = cmdpers.explore(cp, tmp_path)
+    text = report.read_text("utf-8")
+    assert "Nume | Tren | Început" in text and "GetActivities" in text and "LocomotiveEngineer/Search" in text
+    assert "Popescu" not in text  # raportul nu conține date personale
+    paths = [p for _, p in HITS]
+    assert not any("LogOff" in p or "Delete" in p for p in paths)
+    assert all(m == "GET" for m, p in HITS if "Login" not in p)
+    saved = cmdpers.engineer_tables(cp, tmp_path)
+    rows = json.loads(saved[0].read_text("utf-8"))["tabele"][0]["randuri"]
+    assert rows[0]["Nume"] == "Popescu Ion"
+
+
+def test_live_source_reads_cmdpers_and_saves_snapshots(server, tmp_path):
+    import time
+
+    from app.clock import ManualClock
+    from app.config import Config
+    from app.db import DB
+    from app.engine import Engine
+    from app.integrations.locatii import CmdPersLive
+
+    cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
+    src = CmdPersLive(tmp_path / "live", cp, interval=0)
+    eng = Engine(Config(sursa="cmdpers_live"), DB(), ManualClock(time.time()), src, src, src)
+    eng.bootstrap()
+    assert "50421" in eng.live and abs(eng.live["50421"].lat - 45.66) < 1e-6
+    assert list((tmp_path / "live" / "locatii").glob("*.json"))

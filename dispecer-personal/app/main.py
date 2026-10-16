@@ -252,8 +252,8 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
 
     @app.post("/api/ceas")
     def ceas(body: Speed, _: str = Depends(dispecer)):
-        if not cfg.test:
-            raise ValueError("Viteza ceasului se schimbă doar în modul test.")
+        if not cfg.test or cfg.sursa == "cmdpers_live":
+            raise ValueError("Viteza ceasului se schimbă doar la reluarea unor date înregistrate.")
         engine.clock.set_speed(min(max(body.viteza, 0), 600))
         return {"ok": True}
 

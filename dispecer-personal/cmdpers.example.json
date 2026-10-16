@@ -1,0 +1,6 @@
+{
+  "servere": ["http://10.0.0.11", "http://10.40.0.1"],
+  "utilizator": "",
+  "parola": "",
+  "timeout_sec": 30
+}

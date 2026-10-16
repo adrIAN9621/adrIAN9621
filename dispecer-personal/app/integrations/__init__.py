@@ -8,6 +8,13 @@ from .base import CrewAssignment, InfoRU, LivePosition, MersTrenuri, Person, Per
 
 def build(cfg: Config, start: float):
     """Întoarce (mers_trenuri, inforu, personal) după sursa configurată."""
+    if cfg.sursa == "cmdpers_live":
+        from ..cmdpers import from_config
+        from .locatii import CmdPersLive
+        client = from_config()
+        client.login()
+        src = CmdPersLive(_folder(cfg), client)
+        return src, src, src
     if cfg.sursa == "cmdpers":
         from .locatii import LocatiiSource
         src = LocatiiSource(_folder(cfg), bool(cfg.fisiere.get("reluare", True)))

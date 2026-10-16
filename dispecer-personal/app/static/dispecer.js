@@ -151,9 +151,9 @@ function renderEvents() {
 
 function renderHeader() {
   $("#clock").textContent = new Date(state.now * 1000).toLocaleString("ro-RO", { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  $("#source").textContent = { simulator: "SIMULATOR", fisiere: "TEST · date reale, doar citire", cmdpers: "TEST · CmdPers, doar citire", http: "LIVE" }[state.sursa] || state.sursa;
+  $("#source").textContent = { simulator: "SIMULATOR", fisiere: "TEST · date reale, doar citire", cmdpers: "TEST · CmdPers, doar citire", cmdpers_live: "CmdPers LIVE · doar citire, în umbră", http: "LIVE" }[state.sursa] || state.sursa;
   const sp = $("#speed");
-  sp.classList.toggle("hidden", state.sursa === "http");
+  sp.classList.toggle("hidden", state.sursa === "http" || state.sursa === "cmdpers_live");
   if (document.activeElement !== sp) sp.value = String(state.viteza);
   const c = state.personal;
   $("#counts").innerHTML = ["disponibil", "in_deplasare", "pe_tren", "odihna", "indisponibil"]
