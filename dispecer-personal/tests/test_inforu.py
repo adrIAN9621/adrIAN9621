@@ -230,3 +230,80 @@ def test_inforu_source_drives_handover(tmp_path):
     assert [c for _, c in src._path("BN", "MD")] == ["PV", "CP", "PR", "BV", "SG"]  # drum învățat
     old = eng.db.one("SELECT * FROM pontaj WHERE person_id='M001'")
     assert old["end_station"] == off["station"] and old["active"] == 0
+
+
+# ---------------- NetScaler AAA-TM: poarta și pagina cu date pe gazde diferite (ca auth./otf.infofer.ro)
+TM = {"hits": [], "gw": "", "otf": ""}
+
+
+class Gw(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _send(self, code, body="", headers=()):
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        for k, v in headers:
+            self.send_header(k, v)
+        b = body.encode()
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+    def do_GET(self):
+        TM["hits"].append(("GW GET", self.path))
+        if self.path.startswith("/vpn/tmindex.html"):
+            return self._send(200, "<html><body><script src='/vpn/js/l.js'></script></body></html>")
+        if self.path == "/cgi/tm":
+            if "aaa=ok" not in self.headers.get("Cookie", ""):
+                return self._send(302, headers=[("Location", "/vpn/tmindex.html")])
+            body = (f'<html><body onload="document.forms[0].submit()"><form method="POST" '
+                    f'action="{TM["otf"]}/cgi/selfauth"><input type="hidden" name="NSC_TMAS" value="TOKEN123">'
+                    f'<input type="hidden" name="NSC_TMAA" value="x"></form></body></html>')
+            return self._send(200, body)
+        return self._send(404, "nu")
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        f = parse_qs(self.rfile.read(n).decode())
+        TM["hits"].append(("GW POST", self.path))
+        if self.path == "/cgi/login" and f.get("login") == ["ion"] and f.get("passwd") == ["pw"]:
+            return self._send(302, headers=[("Set-Cookie", "aaa=ok; Path=/"), ("Location", "/cgi/tm")])
+        return self._send(200, "<html>login</html>")
+
+
+class Otf(Gw):
+    def do_GET(self):
+        TM["hits"].append(("OTF GET", self.path))
+        if self.path == PAGE:
+            if "tm=ok" in self.headers.get("Cookie", ""):
+                return self._send(200, TABLE)
+            return self._send(302, headers=[("Location", TM["gw"] + "/cgi/tm")])
+        return self._send(404, "nu")
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", 0))
+        f = parse_qs(self.rfile.read(n).decode())
+        TM["hits"].append(("OTF POST", self.path))
+        if self.path == "/cgi/selfauth" and f.get("NSC_TMAS") == ["TOKEN123"]:
+            return self._send(302, headers=[("Set-Cookie", "tm=ok; Path=/"), ("Location", PAGE)])
+        return self._send(500, "nu ar fi trebuit")
+
+
+def test_netscaler_tm_cross_domain_handoff():
+    gw = ThreadingHTTPServer(("127.0.0.1", 0), Gw)
+    otf = ThreadingHTTPServer(("127.0.0.1", 0), Otf)
+    for s in (gw, otf):
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    TM["hits"].clear()
+    TM["gw"] = f"http://localhost:{gw.server_address[1]}"      # gazde diferite → cookie-uri separate
+    TM["otf"] = f"http://127.0.0.1:{otf.server_address[1]}"
+    try:
+        ir = inforu.InfoRU("ion", "pw", TM["otf"] + PAGE, TM["gw"], timeout=3)
+        cols, rows = ir.trenuri()
+        assert rows and rows[0]["Tren"] == "50421"
+        assert ("OTF POST", "/cgi/selfauth") in TM["hits"]
+        assert any("NSC_TMAS" in p for p in ir.pasi) and all("TOKEN123" not in p for p in ir.pasi)
+    finally:
+        gw.shutdown()
+        otf.shutdown()

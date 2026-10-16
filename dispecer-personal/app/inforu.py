@@ -31,6 +31,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Optional
 
+from html import unescape as html_unescape
+
 from .cmdpers import INTERZIS, UA, LoginEsuat, Refuzat, _decodat, ajax_urls, csrf_token, parse_page
 
 ADRESA = "https://otf.infofer.ro/CarpaticaFeroviarSA/TrenuriCirculatie_InParcurs"
@@ -163,10 +165,59 @@ class InfoRU:
                          f"{status} {urllib.parse.urlsplit(final).netloc}{urllib.parse.urlsplit(final).path}")
         return status, final, ct, text
 
-    @staticmethod
-    def _cere_logare(final: str, text: str) -> bool:
-        return (login_form(text) is not None or "/vpn/" in final.lower() or "/logon/" in final.lower()
-                or "tmindex" in final.lower())
+    def _cere_logare(self, final: str, text: str) -> bool:
+        """Încă nu suntem pe pagina cu date: formular de logare sau orice pagină a porții NetScaler."""
+        pe_poarta = (_origin(final) == _origin(self.poarta)
+                     and urllib.parse.urlsplit(final).path != urllib.parse.urlsplit(self.adresa).path)
+        return (login_form(text) is not None or pe_poarta
+                or "/vpn/" in final.lower() or "/logon/" in final.lower() or "tmindex" in final.lower())
+
+    def _urmatorul_pas(self, final: str, text: str) -> Optional[tuple[str, str, dict]]:
+        """Pe paginile intermediare ale porții (ex. /cgi/tm) browserul e dus mai departe de un formular
+        trimis automat sau de JavaScript. → (metodă, url, date) sau None. În jurnal: doar numele câmpurilor."""
+        p = _LoginForm()
+        p.feed(text)
+        for f in p.forms:
+            if any(t == "password" for _, t, _ in f["inputs"]):
+                continue
+            url = urllib.parse.urljoin(final, html_unescape(f["action"]) or final)
+            data = {n: v for n, t, v in f["inputs"] if t in ("hidden", "text", "submit")}
+            self.pasi.append(f"  pagina {urllib.parse.urlsplit(final).path}: formular {f['method']} "
+                             f"{urllib.parse.urlsplit(url).netloc}{urllib.parse.urlsplit(url).path} "
+                             f"câmpuri: {', '.join(data) or '–'}")
+            if f["method"] == "POST":
+                return "POST", url, data
+            q = urllib.parse.urlencode(data)
+            return "GET", url + (("&" if "?" in url else "?") + q if q else ""), {}
+        m = (re.search(r'http-equiv=["\']?refresh["\']?[^>]*content=["\'][^"\']*url=([^"\'>]+)', text, re.I)
+             or re.search(r'(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', text)
+             or re.search(r'location\.(?:replace|assign)\(\s*["\']([^"\']+)["\']', text))
+        if m:
+            url = urllib.parse.urljoin(final, html_unescape(m.group(1)).strip())
+            self.pasi.append(f"  pagina {urllib.parse.urlsplit(final).path}: redirect din script spre "
+                             f"{urllib.parse.urlsplit(url).netloc}{urllib.parse.urlsplit(url).path}")
+            return "GET", url, {}
+        snippet = re.sub(r"[A-Za-z0-9+/=_-]{24,}", "…", re.sub(r"\s+", " ", text))[:300]
+        self.pasi.append(f"  pagina {urllib.parse.urlsplit(final).path}: nu știu cum se merge mai departe – {snippet}")
+        return None
+
+    def _treci_poarta(self, status: int, final: str, text: str) -> tuple[int, str, str, str]:
+        """Urmează pașii intermediari ai porții (max. 6), ca un browser, până la pagina cu date."""
+        ct = ""
+        for _ in range(6):
+            if not self._cere_logare(final, text) or login_form(text) is not None:
+                break
+            nxt = self._urmatorul_pas(final, text)
+            if nxt is None:
+                break
+            method, url, data = nxt
+            if method == "POST":
+                if not urllib.parse.urlsplit(url).path.lower().startswith("/cgi/"):
+                    self.pasi.append("  pas refuzat: POST în afara /cgi/ a porții")
+                    break
+                self.login_post.add(url.split("?")[0])
+            status, final, ct, text = self._raw(method, url, data, referer=final)
+        return status, final, ct, text
 
     # ------------------------------------------------------------------ login
     def login(self) -> None:
@@ -183,6 +234,7 @@ class InfoRU:
         else:
             self._netscaler_login()
         status, final, _, text = self._raw("GET", self.adresa)
+        status, final, _, text = self._treci_poarta(status, final, text)
         if status >= 400 or self._cere_logare(final, text):
             f = login_form(text)
             if f and any(OTP_HINT.search(n) for n, t, _ in f["inputs"] if t in ("password", "text", "number")):
@@ -223,17 +275,12 @@ class InfoRU:
                 "login": self.user, "passwd": self.password, "savecredentials": "false",
                 "nsg-x1-logon-button": "Log On", "StateContext": ""}, ajax=True,
                 referer=self.poarta + "/logon/LogonPoint/tmindex.html")
-        # alegerea „acces din browser” (clientless), dacă poarta o cere
-        for p in ("/cgi/setclient?cvpn",):
-            try:
-                self._raw("GET", self.poarta + p)
-            except Refuzat:
-                pass
 
     def get_page(self) -> tuple[str, str]:
         if not self.logat:
             self.login()
         status, final, ct, text = self._raw("GET", self.adresa)
+        status, final, ct, text = self._treci_poarta(status, final, text)
         if self._cere_logare(final, text):  # sesiunea a expirat: o singură relogare
             self.logat, self.incercat = False, False
             self.login()
