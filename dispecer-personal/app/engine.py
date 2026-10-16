@@ -40,14 +40,23 @@ class Engine:
 
     # ------------------------------------------------------------- pornire
     def bootstrap(self) -> None:
-        for p in self.personal.people():
+        self._sync_people()
+        self.tick()
+
+    def _sync_people(self) -> None:
+        """Lista de personal (cu domiciliul) – la pornire și ori de câte ori sursa dă o listă nouă."""
+        people = self.personal.people()
+        key = tuple((p.id, p.lat, p.lon, p.role, p.name) for p in people)
+        if key == getattr(self, "_people_key", None):
+            return
+        self._people_key = key
+        for p in people:
             if self.db.one("SELECT id FROM persons WHERE id = ?", [p.id]):
                 self.db.x("UPDATE persons SET name=?, role=?, phone=?, home_city=?, lat=?, lon=?, pin=? WHERE id=?",
                           [p.name, p.role, p.phone, p.home_city, p.lat, p.lon, p.pin, p.id])
             else:
                 self.db.insert("persons", id=p.id, name=p.name, role=p.role, phone=p.phone,
                                home_city=p.home_city, lat=p.lat, lon=p.lon, pin=p.pin, status="disponibil")
-        self.tick()
 
     def run_forever(self, interval: float = 2.0) -> None:
         while not self._stop.is_set():
@@ -67,6 +76,7 @@ class Engine:
     def tick(self) -> None:
         with self.lock:
             now = self.clock.now()
+            self._sync_people()
             self._refresh(now)
             self._sync_crews(now)
             self._release_rest(now)

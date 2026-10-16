@@ -159,8 +159,15 @@ def parse_comenzi(cell: str) -> list[dict]:
     return out
 
 
-def _nume(s: str) -> str:
-    return " ".join(w.capitalize() if not w.endswith(".") else w for w in s.split())
+def id_persoana(nume: str) -> str:
+    """Aceeași cheie pentru „POPESCU MARIAN - COSMIN”, „Popescu Marian-Cosmin”, „Popescu Marian-Cosmin ”."""
+    s = unicodedata.normalize("NFKD", str(nume)).encode("ascii", "ignore").decode().upper()
+    s = re.sub(r"\s*-\s*", "-", s)
+    return " ".join(re.sub(r"[^A-Z0-9 .-]", " ", s).split())
+
+
+def nume_afisat(nume: str) -> str:
+    return " ".join(w.capitalize() for w in re.sub(r"\s*-\s*", "-", str(nume)).split())
 
 
 def echipaje_din_comenzi(data: list[list[str]], header: list[str]) -> tuple[list[dict], dict]:
@@ -185,7 +192,8 @@ def echipaje_din_comenzi(data: list[list[str]], header: list[str]) -> tuple[list
                 stat["fara_personal"] += 1
                 continue
             for idx, nume in enumerate(c["persoane"][:2]):
-                echipaje.append({"tren": "|".join(trenuri) or "?", "id_personal": _nume(nume), "nume": _nume(nume),
+                echipaje.append({"tren": "|".join(trenuri) or "?", "id_personal": id_persoana(nume),
+                                 "nume": nume_afisat(nume),
                                  "rol": "mecanic" if idx == 0 else "ajutor", "inceput": c["ora"].isoformat(),
                                  "statie": "", "locomotiva": loco, "comanda": c["cod"]})
     return echipaje, stat

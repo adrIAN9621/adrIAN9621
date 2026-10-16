@@ -453,3 +453,51 @@ def test_crew_list_of_trains_matches_running_inforu_train(tmp_path):
     eng = Engine(Config(sursa="inforu"), DB(), ManualClock(T0 + 60), src, src, src)
     eng.bootstrap()
     assert eng.db.one("SELECT train FROM pontaj WHERE person_id='Caras Costica'")["train"] == "500010/16"
+
+
+# ------------------------------------------------ import DatePersonal_*.xls
+def test_import_personal_html_xls(tmp_path):
+    from app import personal_xls
+    from app.comenzi_xlsx import id_persoana
+    f = tmp_path / "DatePersonal_20261017125841.xls"
+    f.write_text("""<html><body><table>
+<tr><td colspan=5>Date personal</td></tr>
+<tr><td>Nume si prenume</td><td>Functie</td><td>Localitate domiciliu</td><td>Judet</td><td>Telefon</td></tr>
+<tr><td>POPESCU MARIAN - COSMIN</td><td>Mecanic locomotiva</td><td>Brasov</td><td>Brasov</td><td>0722</td></tr>
+<tr><td>Ionescu Dan</td><td>Mecanic ajutor</td><td>Com. Predeal, Str. Garii nr. 3</td><td>Brasov</td><td></td></tr>
+<tr><td>Vasile Ion</td><td>Sef tura</td><td>Arad</td><td></td><td></td></tr>
+<tr><td>Marin Ana</td><td>Mecanic</td><td>Satu Nou de Jos</td><td></td><td></td></tr>
+</table></body></html>""", encoding="utf-8")
+    r = personal_xls.importa(f, tmp_path / "d")
+    assert r["oameni"] == 2 and r["alta_functie"] == 1 and r["fara_loc"] == ["Satu Nou de Jos"]
+    p = json.loads((tmp_path / "d" / "personal.json").read_text("utf-8"))
+    assert p[0]["id"] == id_persoana("Popescu Marian-Cosmin") and p[0]["rol"] == "mecanic" and p[0]["statie_domiciliu"] == "BV"
+    assert p[1]["rol"] == "ajutor" and p[1]["statie_domiciliu"] == "PR"
+
+
+def test_personal_and_orders_share_ids_so_free_people_become_candidates(tmp_path):
+    """Cu personal.json (domiciliu) + echipaje din comenzi: cei liberi sunt propuși ca înlocuitori."""
+    import time as _t
+    from datetime import datetime
+    from app.clock import ManualClock
+    from app.comenzi_xlsx import id_persoana
+    from app.config import Config
+    from app.db import DB
+    from app.engine import Engine
+    from app.integrations.inforu_sursa import InfoRUSource
+
+    folder, T0 = _inforu_folder(tmp_path)
+    (folder / "personal.json").write_text(json.dumps([
+        {"id": id_persoana("SBENGHEA IONUT"), "nume": "Sbenghea Ionut", "rol": "mecanic", "lat": 44.44, "lon": 26.07},
+        {"id": id_persoana("LIBER PE ACASA"), "nume": "Liber Pe Acasa", "rol": "mecanic", "lat": 45.12, "lon": 25.73},
+    ]), "utf-8")
+    (folder / "echipaje.json").write_text(json.dumps([
+        {"tren": "500010/16", "id_personal": id_persoana("Sbenghea Ionut"), "nume": "Sbenghea Ionut", "rol": "mecanic",
+         "inceput": datetime.fromtimestamp(T0 - 10 * 3600).isoformat(), "statie": ""}]), "utf-8")
+    src = InfoRUSource(folder, replay=True)
+    eng = Engine(Config(sursa="inforu"), DB(), ManualClock(T0 + 60), src, src, src)
+    eng.online = {p.id: _t.time() for p in src.people()}
+    eng.bootstrap()
+    assert eng.db.one("SELECT status FROM persons WHERE id=?", [id_persoana("SBENGHEA IONUT")])["status"] == "pe_tren"
+    off = eng.db.one("SELECT * FROM offers WHERE status='trimisa'")
+    assert off and off["person_id"] == id_persoana("LIBER PE ACASA")

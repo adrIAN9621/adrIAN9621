@@ -261,6 +261,15 @@ class LocatiiSource(FileSource):
     def crews(self, now: float) -> list[CrewAssignment]:
         return [c for c in self._crews if c.start <= now]
 
+    def people(self) -> list:
+        """personal.json reimportat e preluat fără repornire."""
+        p = self.dir / "personal.json"
+        mt = p.stat().st_mtime if p.exists() else 0
+        if mt and mt != getattr(self, "_people_mtime", None):
+            self._people_mtime = mt
+            self._people = self._load_people()
+        return list(self._people)
+
 
 class CmdPersLive(LocatiiSource):
     """Pozițiile vin direct din CmdPers (autologin, doar citire).
