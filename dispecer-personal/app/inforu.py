@@ -247,8 +247,12 @@ class InfoRU:
         page = parse_page(text)
         best = max(page.tables, key=lambda t: len(t["rows"]), default=None)
         if best and best["rows"]:
-            cols = best["headers"] or [f"col{i + 1}" for i in range(len(best["rows"][0]))]
-            return cols, [dict(zip(cols, r)) for r in best["rows"]]
+            rows = best["rows"]
+            cols = best["headers"]
+            if not cols and any(c.strip().lower() == "tren" for c in rows[0]):
+                cols, rows = rows[0], rows[1:]  # antetul e scris cu <td>, nu <th>
+            cols = cols or [f"col{i + 1}" for i in range(len(rows[0]))]
+            return cols, [dict(zip(cols, r)) for r in rows if len(r) >= len(cols) // 2]
         token = csrf_token(text)
         for u in ajax_urls_any(page, final):
             if not POST_CITIRE.search(urllib.parse.urlsplit(u).path):
@@ -386,3 +390,60 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+
+
+# ================================================== tabelul „Trenuri în parcurs”
+def _ora(v: Any) -> Optional[float]:
+    s = str(v or "").strip()
+    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M"):
+        try:
+            return datetime.strptime(s, fmt).timestamp()
+        except ValueError:
+            pass
+    return None
+
+
+def _col(row: dict, *names: str) -> str:
+    low = {str(k).strip().lower(): v for k, v in row.items()}
+    for n in names:
+        if n.lower() in low:
+            return str(low[n.lower()] or "").strip()
+    return ""
+
+
+def normalizeaza(row: dict) -> Optional[dict]:
+    """Un rând din „Trenuri în circulație – În parcurs” → câmpuri pentru aplicație.
+
+    Tren „58428016/” = trenul 584280 plecat în ziua 16 a lunii. S / P = M (raportat) sau
+    E (estimat) pentru Sosire / Plecare-Trecere. Min = întârzierea (negativ = în avans).
+    """
+    raw = _col(row, "Tren", "NrTren").rstrip("/").strip()
+    digits = re.sub(r"\D", "", raw)
+    if len(digits) < 3:
+        return None
+    rel = _col(row, "Relatia", "Relația")
+    # „Moacsa hcv -Curtici”, „Constanta Port Zona C -Dornesti”: separatorul e „-” lângă un spațiu,
+    # iar dacă lipsește (Brazi-Bacau) primul „-”
+    m = re.search(r"\s-|-\s", rel)
+    cut = m.start() if m else rel.find("-")
+    orig, dest = (rel[:cut], rel[cut:].lstrip(" -")) if cut >= 0 else (rel, "")
+    s_flag, p_flag = _col(row, "S").upper(), _col(row, "P").upper()
+    sosire, plecare = _ora(_col(row, "Sosire")), _ora(_col(row, "Plecare/Trecere", "Plecare"))
+    try:
+        intarziere = float(_col(row, "Min") or 0)
+    except ValueError:
+        intarziere = 0.0
+    real = [t for t, f in ((plecare, p_flag), (sosire, s_flag)) if t and f == "M"]
+    return {
+        "id": digits,                                   # cheia unică (tren + zi)
+        "tren": digits[:-2] if len(digits) > 6 else digits,
+        "zi": digits[-2:] if len(digits) > 6 else "",
+        "rang": _col(row, "Rang"),
+        "origine": orig.strip(), "destinatie": dest.strip(),
+        "statie": _col(row, "Raportat"),
+        "sosire": sosire, "sosire_reala": s_flag == "M",
+        "plecare": plecare, "plecare_reala": p_flag == "M",
+        "ora_raportare": max(real) if real else None,
+        "intarziere_min": intarziere,
+        "trasa": _col(row, "Identificator trasa"),
+    }

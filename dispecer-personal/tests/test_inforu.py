@@ -147,3 +147,86 @@ def test_explore_report_has_structure_not_data(srv, tmp_path):
     assert "TrenuriCirculatie_InParcurs_Read" in rep and "NrTren, Statie, Intarziere" in rep
     assert "Brasov" not in rep and "Tren_Delete" in rep
     assert not any("Delete" in p for _, p in STATE["hits"])
+
+
+# ------------------------------------------ tabelul real „Trenuri în parcurs”
+COLS = ["Tren", "Rang", "Relatia", "Raportat", "Linia", "Fir", "S", "Sosire", "P", "Plecare/Trecere",
+        "ONI", "TFO", "Min", "Monitorizare", "Identificator trasa"]
+
+
+def test_normalize_real_rows():
+    r = inforu.normalizeaza(dict(zip(COLS, ["58428015/", "5", "Constanta Port Zona C -Dornesti", "Ramnicu Sarat",
+                                            "5", "", "M", "16.10.2026 20:18", "E", "15.10.2026 21:46", "Y", "", "0",
+                                            "Monitorizare", "584280"])))
+    assert (r["tren"], r["zi"], r["origine"], r["destinatie"]) == ("584280", "15", "Constanta Port Zona C", "Dornesti")
+    assert r["sosire_reala"] and not r["plecare_reala"] and r["ora_raportare"] == r["sosire"]
+    r = inforu.normalizeaza(dict(zip(COLS, ["68423016/", "6", "Brazi-Bacau", "Valea Seaca Hm", "4", "", "M",
+                                            "16.10.2026 23:45", "E", "16.10.2026 23:51", "", "", "528", "", "684230"])))
+    assert (r["origine"], r["destinatie"], r["intarziere_min"]) == ("Brazi", "Bacau", 528.0)
+
+
+def test_station_names_match():
+    from app.statii import Statii
+    s = Statii()
+    assert s.code("Bucuresti Nord") == "BN" and s.code("Brasov Triaj") == "BV"
+    assert s.code("Constanta Port Zona C") == "CT" and s.code("Drobeta Tr.Severin") is None
+
+
+def _inforu_folder(tmp_path):
+    from datetime import datetime
+    from app.integrations.simulator import Simulator
+    T0, H = 1_760_000_000.0, 3600.0
+    d = tmp_path / "ir"
+    (d / "inforu").mkdir(parents=True)
+    sim = Simulator(T0)
+    (d / "personal.json").write_text(json.dumps([
+        {"id": p.id, "nume": p.name, "rol": p.role, "lat": p.lat, "lon": p.lon} for p in sim.people()]), "utf-8")
+    iso = lambda t: datetime.fromtimestamp(t).isoformat()
+    fmt = lambda t: datetime.fromtimestamp(t).strftime("%d.%m.%Y %H:%M")
+    (d / "echipaje.json").write_text(json.dumps([
+        {"tren": "500010", "id_personal": "M001", "rol": "mecanic", "inceput": iso(T0 - 10 * H), "statie": "Bucuresti Nord"},
+        {"tren": "500010", "id_personal": "A001", "rol": "ajutor", "inceput": iso(T0 - 10 * H), "statie": "Bucuresti Nord"},
+    ]), "utf-8")
+    route = ["Bucuresti Nord", "Ploiesti Vest", "Campina", "Predeal", "Brasov", "Sighisoara", "Medias", "Copsa Mica"]
+    for k in range(0, 8 * 10):
+        t = T0 + k * 300
+        st = route[min(k // 10, len(route) - 1)]
+        leg_start = T0 + (k // 10) * 3000
+        row = dict(zip(COLS, ["50001016/", "5", "Bucuresti Nord-Arad", st, "1", "1", "", "", "M", fmt(leg_start),
+                              "", "", "35", "Monitorizare", "500010"]))
+        (d / "inforu" / f"{k:05d}.json").write_text(json.dumps({"ora": iso(t), "coloane": COLS, "trenuri": [row]}), "utf-8")
+    return d, T0
+
+
+def test_inforu_source_drives_handover(tmp_path):
+    import time as _t
+    from app.clock import ManualClock
+    from app.config import Config
+    from app.db import DB
+    from app.engine import Engine
+    from app.integrations.inforu_sursa import InfoRUSource
+
+    folder, T0 = _inforu_folder(tmp_path)
+    src = InfoRUSource(folder, replay=True)
+    clock = ManualClock(T0 + 60)
+    eng = Engine(Config(sursa="inforu"), DB(), clock, src, src, src)
+    eng.online = {p.id: _t.time() for p in src.people()}
+    eng.bootstrap()
+    tt, lv = eng.timetables["500010/16"], eng.live["500010/16"]
+    assert tt.route[0] == "BN" and tt.route[-1] == "AR" and "BV" in tt.route
+    assert lv.delay_min == 35
+    clock.advance(3100)  # după Ploiești Vest direcția e spre nord → Pitești / Craiova nu mai sunt „în față”
+    eng.tick()
+    route = eng.timetables["500010/16"].route
+    assert route[0] == "PV" and "BV" in route and "PT" not in route and "CR" not in route
+    assert len(eng.db.q("SELECT * FROM pontaj WHERE active=1")) == 2   # echipaje.json „500010” legat de 500010/16
+    off = eng.db.one("SELECT * FROM offers WHERE status='trimisa' AND person_id LIKE 'M%'")
+    assert off
+    eng.answer(off["id"], off["person_id"], True)
+    for _ in range(80):
+        clock.advance(300)
+        eng.tick()
+    assert eng.db.one("SELECT status FROM requests WHERE id=?", [off["request_id"]])["status"] == "finalizat"
+    assert [c for _, c in src._path("BN", "MD")] == ["PV", "CP", "PR", "BV", "SG"]  # drum învățat
+    old = eng.db.one("SELECT * FROM pontaj WHERE person_id='M001'")
+    assert old["end_station"] == off["station"] and old["active"] == 0

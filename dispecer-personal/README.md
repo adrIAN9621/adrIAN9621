@@ -74,6 +74,17 @@ sau prin poarta `https://auth.infofer.ro`). Clientul e în `app/inforu.py`:
 * doar citire: POST doar spre formularul de logare și spre acțiuni de citire (`…_Read`, `Get…`), doar spre
   gazdele infofer din `inforu.json`; redirecturile spre alte servere sunt refuzate.
 
+Tabelul „Trenuri în parcurs” se citește direct: `Tren` (`58428016/` = trenul 584280 plecat în ziua 16),
+`Relatia` (plecare → **destinație**), `Raportat` + `Sosire`/`Plecare/Trecere` cu `M` (oră reală; `E` = estimat),
+`Min` (întârziere). Din instantanee succesive rezultă trecerile prin stații, iar din trecerile tuturor trenurilor
+aplicația **învață legăturile rețelei** și calculează drumul spre destinație (stațiile de schimb din față).
+
+* `Descarca-Statii.bat` – o dată: coordonatele tuturor stațiilor din România (OpenStreetMap) în `statii.json`.
+* `Porneste-InfoRU-Live.bat` – aplicația pe trenurile reale, în umbră (nimeni nu primește comenzi).
+  Instantaneele se salvează în `date-reale/inforu/` și se pot relua apoi cu `"sursa": "inforu"`.
+* `Verifica-Date.bat` – ce trenuri vede, unde sunt, ce stații au în față și ce stații nu au coordonate.
+* Echipajele (`date-reale/echipaje.json`) se pot scrie cu numărul trenului fără zi (`"tren": "584280"`).
+
 `Configureaza-Parole.bat` cere parolele, apoi: `InfoRU-Test.bat` (logare + coloanele găsite),
 `InfoRU-Exploreaza.bat` (scrie `date-reale/explorare-inforu/raport.md` – structura paginii, fără date, de trimis
 pentru legarea în aplicație), `InfoRU-Inregistreaza.bat` (salvează trenurile la 2 minute în `date-reale/inforu/`).
@@ -125,6 +136,8 @@ app/
     http_adapters.py   conectarea la sistemele reale
   cmdpers.py         ← client CmdPers: autologin, 2 servere, gardă doar-citire, explorator
   inforu.py          ← client InfoRU / OTF Infofer: autologin (formular sau NetScaler), doar citire
+  integrations/inforu_sursa.py ← trenurile din InfoRU → treceri, destinație, rețea învățată
+  statii.py          ← potrivirea numelor de stații + descărcare coordonate din OpenStreetMap
   configurare.py     ← cere parolele (Configureaza-Parole.bat)
   matching.py        ← alegerea celui mai apropiat om / stației de schimb
   engine.py          ← motorul: ore lucrate, alerte, oferte, schimb, pontaj automat

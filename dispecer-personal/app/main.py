@@ -63,7 +63,7 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
         start = clock.now()
     mers, inforu, personal = integrations.build(cfg, start or time.time())
     if clock is None:
-        replay = cfg.sursa in ("fisiere", "cmdpers") and cfg.fisiere.get("reluare", True)
+        replay = cfg.sursa in ("fisiere", "cmdpers", "inforu") and cfg.fisiere.get("reluare", True)
         clock = Clock(cfg.viteza_ceas, inforu.start_time()) if replay else Clock(1.0)
     engine = Engine(cfg, DB(db_path), clock, mers, inforu, personal)
     tokens: dict[str, str] = {}
@@ -252,7 +252,7 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
 
     @app.post("/api/ceas")
     def ceas(body: Speed, _: str = Depends(dispecer)):
-        if not cfg.test or cfg.sursa == "cmdpers_live":
+        if not cfg.test or cfg.sursa.endswith("_live"):
             raise ValueError("Viteza ceasului se schimbă doar la reluarea unor date înregistrate.")
         engine.clock.set_speed(min(max(body.viteza, 0), 600))
         return {"ok": True}

@@ -12,6 +12,8 @@ from .integrations.fisiere import FileSource, _read
 
 def main(folder: str) -> int:
     from pathlib import Path
+    if (Path(folder) / "inforu").is_dir():
+        return main_inforu(folder)
     if (Path(folder) / "locatii").is_dir():
         return main_locatii(folder)
     try:
@@ -62,6 +64,31 @@ def main_locatii(folder: str) -> int:
     print(f"Personal: {len(src.people())} · echipaje: {len(src._crews)}")
     for w in src.warnings[:50]:
         print("ATENȚIE:", w)
+    return 0
+
+
+def main_inforu(folder: str) -> int:
+    from .integrations.inforu_sursa import InfoRUSource
+    try:
+        src = InfoRUSource(folder, replay=True)
+    except Exception as e:
+        print("EROARE:", e)
+        return 1
+    t0, t1 = src._snaps[0], src._snaps[-1]
+    fmt = lambda t: time.strftime("%d.%m %H:%M", time.localtime(t))
+    state = src._state(t1)
+    print(f"Instantanee InfoRU: {len(src._snaps)}  ({fmt(t0)} → {fmt(t1)})")
+    print(f"Trenuri în parcurs: {len(src._hist)} · cu stația găsită pe hartă: {len(state)}")
+    print(f"Legături între stații învățate: {sum(len(v) for v in src._edges.values()) // 2}")
+    for n, s in sorted(state.items())[:40]:
+        tt, lv = s["tt"], s["live"]
+        fata = [src_name(st.station) for st in tt.stops[1:-1][:4]]
+        print(f"  {n:>10} {lv.status:<9} +{lv.delay_min:>5.0f} min | acum: {src_name(tt.route[0])} → "
+              f"{src_name(tt.route[-1])} | în față: {', '.join(fata) or '–'}")
+    if src.statii.negasite:
+        print(f"Stații fără coordonate ({len(src.statii.negasite)}) – rulați Descarca-Statii.bat:")
+        print("  " + ", ".join(sorted(src.statii.negasite)[:60]))
+    print(f"Personal: {len(src.people())} · echipaje: {len(src._crews)}")
     return 0
 
 

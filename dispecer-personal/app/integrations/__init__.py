@@ -15,6 +15,15 @@ def build(cfg: Config, start: float):
         client.login()
         src = CmdPersLive(_folder(cfg), client)
         return src, src, src
+    if cfg.sursa in ("inforu", "inforu_live"):
+        from .inforu_sursa import InfoRUSource
+        client = None
+        if cfg.sursa == "inforu_live":
+            from ..inforu import from_config as inforu_client
+            client = inforu_client()
+        src = InfoRUSource(_folder(cfg), replay=cfg.sursa == "inforu" and bool(cfg.fisiere.get("reluare", True)),
+                           client=client)
+        return src, src, src
     if cfg.sursa == "cmdpers":
         from .locatii import LocatiiSource
         src = LocatiiSource(_folder(cfg), bool(cfg.fisiere.get("reluare", True)))

@@ -9,7 +9,8 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    # sursa datelor: "simulator" (demo), "cmdpers_live" (direct din CmdPers, autologin, doar citire),
+    # sursa datelor: "simulator" (demo), "inforu_live" / "inforu" (trenuri din InfoRU, live / înregistrate),
+    # "cmdpers_live" (direct din CmdPers, autologin, doar citire),
     # "cmdpers" (poziții locomotive înregistrate din CmdPers),
     # "fisiere" (date reale în formatul complet) sau "http" (sistemele reale)
     sursa: str = "simulator"
@@ -44,7 +45,7 @@ class Config:
     @property
     def test(self) -> bool:
         """Mod test: ceas reglabil, baza de date în memorie, oamenii „răspund” automat."""
-        return self.sursa in ("simulator", "fisiere", "cmdpers", "cmdpers_live")
+        return self.sursa in ("simulator", "fisiere", "cmdpers", "cmdpers_live", "inforu", "inforu_live")
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":
