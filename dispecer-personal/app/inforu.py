@@ -114,6 +114,10 @@ class InfoRU:
         self.logat = False
         self.incercat = False                   # o singură încercare de logare per pornire
         self.pasi: list[str] = []               # jurnalul logării (fără parole) – pentru raport
+        # operatorul din „ALEGEȚI OTF” = primul segment din adresă (CarpaticaFeroviarSA)
+        self.operator = urllib.parse.urlsplit(adresa).path.strip("/").split("/")[0]
+        self.operator_ales = False
+        self.nav_get: set[str] = set()          # linkul de alegere a operatorului (GET permis explicit)
         self.jar = http.cookiejar.CookieJar()
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar),
                                                   _Redirect(self.allowed))
@@ -130,6 +134,8 @@ class InfoRU:
             raise Refuzat(f"Cale suspectă: {path}")
         if method == "POST" and url.split("?")[0] in self.login_post:
             return
+        if method == "GET" and url.split("#")[0] in self.nav_get:
+            return  # linkul din meniul „ALEGEȚI OTF” – doar alege ce firmă se afișează
         if method == "GET" and url.lower().startswith(self.poarta.lower() + "/cgi/setclient"):
             return  # alegerea „acces din browser” pe poarta NetScaler – ține doar de sesiune
         if INTERZIS.search(path) or INTERZIS.search(query):
@@ -276,15 +282,45 @@ class InfoRU:
                 "nsg-x1-logon-button": "Log On", "StateContext": ""}, ajax=True,
                 referer=self.poarta + "/logon/LogonPoint/tmindex.html")
 
+    def _deschide(self, url: Optional[str] = None) -> tuple[str, str]:
+        status, final, _, text = self._raw("GET", url or self.adresa)
+        status, final, _, text = self._treci_poarta(status, final, text)
+        return final, text
+
+    def _alege_operator(self) -> None:
+        """Ca în browser: pagina principală otf.infofer.ro → ALEGEȚI OTF → CarpaticaFeroviarSA."""
+        root = _origin(self.adresa) + "/"
+        final, text = self._deschide(root)
+        want = self.operator.lower()
+        for href, label in parse_page(text).links:
+            url = urllib.parse.urljoin(final, html_unescape(href)).split("#")[0]
+            eticheta = re.sub(r"\s+", "", label).lower()
+            if _origin(url) not in self.allowed or not (want in eticheta or want in url.lower()):
+                continue
+            self.nav_get.add(url)
+            self.pasi.append(f"  operator ales: „{label.strip()}” → "
+                             f"{urllib.parse.urlsplit(url).netloc}{urllib.parse.urlsplit(url).path}")
+            self._deschide(url)
+            return
+        self.pasi.append(f"  nu am găsit în meniul „ALEGEȚI OTF” linkul pentru {self.operator}")
+
     def get_page(self) -> tuple[str, str]:
         if not self.logat:
             self.login()
-        status, final, ct, text = self._raw("GET", self.adresa)
-        status, final, ct, text = self._treci_poarta(status, final, text)
+        final, text = self._deschide()
         if self._cere_logare(final, text):  # sesiunea a expirat: o singură relogare
-            self.logat, self.incercat = False, False
+            self.logat, self.incercat, self.operator_ales = False, False, False
             self.login()
-            status, final, ct, text = self._raw("GET", self.adresa)
+            final, text = self._deschide()
+        if not _are_tabel(text) and not self.operator_ales:
+            self.operator_ales = True
+            self._alege_operator()
+            final, text = self._deschide()
+        if not _are_tabel(text) and not self.adresa.lower().endswith(".aspx"):
+            f2, t2 = self._deschide(self.adresa + ".aspx")
+            if _are_tabel(t2):
+                self.pasi.append("  pagina cu trenuri găsită la varianta .aspx")
+                self.adresa, final, text = self.adresa + ".aspx", f2, t2
         return final, text
 
     # -------------------------------------------------------------- date
@@ -313,6 +349,15 @@ class InfoRU:
             if rows:
                 return list(rows[0].keys()), rows
         return [], []
+
+
+def _are_tabel(text: str) -> bool:
+    """Pagina conține tabelul „Trenuri în parcurs” (chiar și gol – are antetul cu „Raportat”)."""
+    for t in parse_page(text).tables:
+        cells = t["headers"] or (t["rows"][0] if t["rows"] else [])
+        if any(c.strip().lower() in ("raportat", "tren") for c in cells):
+            return True
+    return False
 
 
 def ajax_urls_any(page, base: str) -> list[str]:

@@ -46,6 +46,19 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         STATE["hits"].append(("GET", self.path))
         p = urlparse(self.path).path
+        if STATE["mode"] == "operator":
+            if p == "/":
+                return self._send(200, '<html><body><a href="/CargoTransVagon/Default.aspx">Cargo Trans Vagon</a>'
+                                       '<a href="/Home/SetOtf?otf=CarpaticaFeroviarSA">CarpaticaFeroviarSA</a></body></html>')
+            if p == "/Home/SetOtf":
+                return self._send(302, headers=[("Set-Cookie", "op=cf; Path=/"), ("Location", "/")])
+            if p == PAGE:
+                return self._send(404, "nu")
+            if p == PAGE + ".aspx":
+                ok = "op=cf" in self.headers.get("Cookie", "")
+                return self._send(200, TABLE if ok else "<html><body>Alegeti OTF</body></html>")
+            if p.startswith("/CargoTransVagon"):
+                return self._send(500, "operator greșit")
         if p == PAGE:
             if self._ok():
                 return self._send(200, GRID if STATE["mode"] == "grid" else TABLE)
@@ -307,3 +320,19 @@ def test_netscaler_tm_cross_domain_handoff():
     finally:
         gw.shutdown()
         otf.shutdown()
+
+
+def test_operator_selected_from_menu_and_aspx_page(srv):
+    STATE["mode"] = "operator"
+    SESS.add("1")  # deja trecut de poartă
+    ir = client(srv)
+    ir.logat = True
+    import http.cookiejar
+    c = http.cookiejar.Cookie(0, "s", "1", None, False, "127.0.0.1", False, False, "/", True, False, None, False,
+                              None, None, {})
+    ir.jar.set_cookie(c)
+    cols, rows = ir.trenuri()
+    assert rows and ir.adresa.endswith(".aspx")
+    assert ("GET", "/Home/SetOtf?otf=CarpaticaFeroviarSA") in STATE["hits"]
+    assert not any("CargoTransVagon" in p for _, p in STATE["hits"])
+    assert any("operator ales" in p for p in ir.pasi)
