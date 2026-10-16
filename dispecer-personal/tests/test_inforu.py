@@ -270,6 +270,11 @@ class Gw(BaseHTTPRequestHandler):
         if self.path == "/cgi/tm":
             if "aaa=ok" not in self.headers.get("Cookie", ""):
                 return self._send(302, headers=[("Location", "/vpn/tmindex.html")])
+            if TM.get("meta"):  # exact cum răspunde auth.infofer.ro
+                u = f'{TM["otf"]}/cgi/selfauth?code=75b7add9fff33be90'
+                return self._send(200, f'<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">'
+                                       f'<meta http-equiv="refresh" content="0;URL=\'{u}\'" /></head><body><p>This page '
+                                       f'has moved to a <a href="{u}">new location</a></p></body></html>')
             body = (f'<html><body onload="document.forms[0].submit()"><form method="POST" '
                     f'action="{TM["otf"]}/cgi/selfauth"><input type="hidden" name="NSC_TMAS" value="TOKEN123">'
                     f'<input type="hidden" name="NSC_TMAA" value="x"></form></body></html>')
@@ -288,6 +293,8 @@ class Gw(BaseHTTPRequestHandler):
 class Otf(Gw):
     def do_GET(self):
         TM["hits"].append(("OTF GET", self.path))
+        if self.path == "/cgi/selfauth?code=75b7add9fff33be90":
+            return self._send(302, headers=[("Set-Cookie", "tm=ok; Path=/"), ("Location", PAGE)])
         if self.path == PAGE:
             if "tm=ok" in self.headers.get("Cookie", ""):
                 return self._send(200, TABLE)
@@ -303,7 +310,9 @@ class Otf(Gw):
         return self._send(500, "nu ar fi trebuit")
 
 
-def test_netscaler_tm_cross_domain_handoff():
+@pytest.mark.parametrize("meta", [False, True])
+def test_netscaler_tm_cross_domain_handoff(meta):
+    TM["meta"] = meta
     gw = ThreadingHTTPServer(("127.0.0.1", 0), Gw)
     otf = ThreadingHTTPServer(("127.0.0.1", 0), Otf)
     for s in (gw, otf):
@@ -315,8 +324,12 @@ def test_netscaler_tm_cross_domain_handoff():
         ir = inforu.InfoRU("ion", "pw", TM["otf"] + PAGE, TM["gw"], timeout=3)
         cols, rows = ir.trenuri()
         assert rows and rows[0]["Tren"] == "50421"
-        assert ("OTF POST", "/cgi/selfauth") in TM["hits"]
-        assert any("NSC_TMAS" in p for p in ir.pasi) and all("TOKEN123" not in p for p in ir.pasi)
+        if meta:
+            assert ("OTF GET", "/cgi/selfauth?code=75b7add9fff33be90") in TM["hits"]
+            assert all("75b7add9" not in p for p in ir.pasi)
+        else:
+            assert ("OTF POST", "/cgi/selfauth") in TM["hits"]
+            assert any("NSC_TMAS" in p for p in ir.pasi) and all("TOKEN123" not in p for p in ir.pasi)
     finally:
         gw.shutdown()
         otf.shutdown()

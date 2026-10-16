@@ -195,15 +195,18 @@ class InfoRU:
                 return "POST", url, data
             q = urllib.parse.urlencode(data)
             return "GET", url + (("&" if "?" in url else "?") + q if q else ""), {}
-        m = (re.search(r'http-equiv=["\']?refresh["\']?[^>]*content=["\'][^"\']*url=([^"\'>]+)', text, re.I)
+        m = (re.search(r'http-equiv=["\']?refresh["\']?[^>]*?content="[^"]*?url\s*=\s*\'?([^"\'>\s]+)', text, re.I)
+             or re.search(r"http-equiv=[\"']?refresh[\"']?[^>]*?content='[^']*?url\s*=\s*\"?([^\"'>\s]+)", text, re.I)
              or re.search(r'(?:window\.|document\.|top\.)?location(?:\.href)?\s*=\s*["\']([^"\']+)["\']', text)
-             or re.search(r'location\.(?:replace|assign)\(\s*["\']([^"\']+)["\']', text))
+             or re.search(r'location\.(?:replace|assign)\(\s*["\']([^"\']+)["\']', text)
+             or re.search(r'has moved to <a href=["\']([^"\']+)["\']', text, re.I))
         if m:
             url = urllib.parse.urljoin(final, html_unescape(m.group(1)).strip())
             self.pasi.append(f"  pagina {urllib.parse.urlsplit(final).path}: redirect din script spre "
                              f"{urllib.parse.urlsplit(url).netloc}{urllib.parse.urlsplit(url).path}")
             return "GET", url, {}
-        snippet = re.sub(r"[A-Za-z0-9+/=_-]{24,}", "…", re.sub(r"\s+", " ", text))[:300]
+        snippet = re.sub(r"[A-Za-z0-9+/=_-]{24,}", "…", re.sub(r"\s+", " ", text))
+        snippet = re.sub(r"([?&][A-Za-z_]+=)[^&\"'\s>]+", r"\1…", snippet)[:300]  # fără coduri / bilete
         self.pasi.append(f"  pagina {urllib.parse.urlsplit(final).path}: nu știu cum se merge mai departe – {snippet}")
         return None
 
@@ -217,6 +220,8 @@ class InfoRU:
             if nxt is None:
                 break
             method, url, data = nxt
+            if method == "GET" and urllib.parse.urlsplit(url).path.lower().startswith("/cgi/"):
+                self.nav_get.add(url.split("#")[0])  # ex. /cgi/selfauth?code=… – codul nu trece prin lista de cuvinte
             if method == "POST":
                 if not urllib.parse.urlsplit(url).path.lower().startswith("/cgi/"):
                     self.pasi.append("  pas refuzat: POST în afara /cgi/ a porții")
