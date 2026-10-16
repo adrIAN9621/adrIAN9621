@@ -72,7 +72,7 @@ class Engine:
             self._release_rest(now)
             self._check_programs(now)
             self._process_requests(now)
-            if self.cfg.sursa == "simulator":
+            if self.cfg.test:
                 self._simulate_answers(now)
 
     def _refresh(self, now: float) -> None:
@@ -91,12 +91,17 @@ class Engine:
                               [c.train, c.person_id, c.start, 12 * H])
             if dup:
                 continue
+            # rolul e deja acoperit pe tren (ex. de schimbul făcut de aplicație) sau omul e pe alt tren
+            taken = self.db.one("SELECT id FROM pontaj WHERE active=1 AND ((train=? AND role=?) OR person_id=?)",
+                                [c.train, c.role, c.person_id])
+            if taken or not self.db.one("SELECT id FROM persons WHERE id=?", [c.person_id]):
+                continue
             self.db.insert("pontaj", train=c.train, person_id=c.person_id, role=c.role, start=c.start,
                            start_station=c.station, active=1, source="comandă personal")
             self.db.update("persons", c.person_id, status="pe_tren", status_until=None)
 
     def _release_rest(self, now: float) -> None:
-        after = "disponibil" if self.cfg.sursa == "simulator" else "indisponibil"
+        after = "disponibil" if self.cfg.test else "indisponibil"
         for p in self.db.q("SELECT id FROM persons WHERE status='odihna' AND status_until <= ?", [now]):
             self.db.update("persons", p["id"], status=after, status_until=None)
 

@@ -152,3 +152,52 @@ def test_api_login_and_mecanic_flow():
         me = c.get("/api/eu", headers=h).json()
         assert me["comanda"]["train"] and me["oferta"] is None
         assert c.get(f"/api/pontaj.csv?token={d}").text.count("\n") >= 17
+
+
+# ------------------------------------------------- date reale din fișiere
+def test_file_source_replay_is_read_only(tmp_path, monkeypatch):
+    import json
+    import sys
+    import urllib.request
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "instrumente"))
+    from exemplu_din_simulator import export
+    from app.integrations.fisiere import FileSource
+
+    start = float(int(T0))
+    folder = export(tmp_path / "date", start=start, hours=10, step_min=5)
+
+    def no_network(*a, **k):
+        raise AssertionError("modul fișiere nu are voie să facă cereri în rețea")
+    monkeypatch.setattr(urllib.request, "urlopen", no_network)
+
+    src = FileSource(folder, replay=True)
+    assert not src.warnings
+    clock = ManualClock(src.start_time())
+    eng = Engine(Config(sursa="fisiere"), DB(), clock, src, src, src)
+    eng.online = {p.id: time.time() for p in src.people()}
+    eng.bootstrap()
+    assert len(eng.db.q("SELECT * FROM pontaj WHERE active=1")) == 16
+    off = eng.db.one("SELECT * FROM offers WHERE status='trimisa' ORDER BY id")
+    assert off, "pe datele înregistrate trebuie să apară cereri de înlocuire"
+    eng.answer(off["id"], off["person_id"], True)
+    for _ in range(60):
+        clock.advance(5 * 60)
+        eng.tick()
+    assert eng.db.one("SELECT status FROM requests WHERE id=?", [off["request_id"]])["status"] == "finalizat"
+    out = folder / "iesire"
+    comenzi = [json.loads(x) for x in (out / "comenzi_propuse.jsonl").read_text("utf-8").splitlines()]
+    assert comenzi[0]["id_personal"] == off["person_id"]
+    assert (out / "pontaj_calculat.jsonl").read_text("utf-8").strip()
+
+
+def test_http_read_only_blocks_writes():
+    from app.integrations import ReadOnly
+
+    class Boom:
+        def push_pontaj(self, e): raise AssertionError("scriere în producție")
+        def push_comanda(self, c): raise AssertionError("scriere în producție")
+    ro = ReadOnly(Boom())
+    ro.push_pontaj({})
+    ro.push_comanda({})

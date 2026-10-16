@@ -56,9 +56,15 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
         data_dir = Path(os.environ.get("DISPECER_DATA", Path.home() / ".dispecer-personal"))
         data_dir.mkdir(parents=True, exist_ok=True)
         # simulatorul pornește de fiecare dată de la zero
-        db_path = ":memory:" if cfg.sursa == "simulator" else str(data_dir / "dispecer.db")
-    clock = clock or Clock(cfg.viteza_ceas if cfg.sursa == "simulator" else 1.0)
-    mers, inforu, personal = integrations.build(cfg, clock.now())
+        db_path = ":memory:" if cfg.test else str(data_dir / "dispecer.db")
+    start = None
+    if cfg.sursa == "simulator":
+        clock = clock or Clock(cfg.viteza_ceas)
+        start = clock.now()
+    mers, inforu, personal = integrations.build(cfg, start or time.time())
+    if clock is None:
+        replay = cfg.sursa == "fisiere" and cfg.fisiere.get("reluare", True)
+        clock = Clock(cfg.viteza_ceas, inforu.start_time()) if replay else Clock(1.0)
     engine = Engine(cfg, DB(db_path), clock, mers, inforu, personal)
     tokens: dict[str, str] = {}
 
@@ -245,8 +251,8 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
 
     @app.post("/api/ceas")
     def ceas(body: Speed, _: str = Depends(dispecer)):
-        if cfg.sursa != "simulator":
-            raise ValueError("Viteza ceasului se schimbă doar în simulator.")
+        if not cfg.test:
+            raise ValueError("Viteza ceasului se schimbă doar în modul test.")
         engine.clock.set_speed(min(max(body.viteza, 0), 600))
         return {"ok": True}
 

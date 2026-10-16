@@ -9,8 +9,11 @@ from pathlib import Path
 
 @dataclass
 class Config:
-    # sursa datelor: "simulator" (demo) sau "http" (sistemele reale CFR / companie)
+    # sursa datelor: "simulator" (demo), "fisiere" (date reale salvate, test fără producție)
+    # sau "http" (sistemele reale)
     sursa: str = "simulator"
+    # NU trimite nimic spre sistemele externe (comenzi, pontaj) – doar citește
+    doar_citire: bool = True
     # reguli program
     program_max_ore: float = 12.0          # durata maximă a programului mecanic/ajutor
     alerta_inainte_ore: float = 3.0        # când începe căutarea înlocuitorului
@@ -26,6 +29,8 @@ class Config:
     viteza_ceas: float = 60.0
     # autentificare
     parola_dispecer: str = "dispecer"
+    # date reale din fișiere (sursa = "fisiere")
+    fisiere: dict = field(default_factory=lambda: {"dosar": "date-reale", "reluare": True})
     # adaptoare HTTP (folosite când sursa = "http")
     http: dict = field(default_factory=lambda: {
         "mers_trenuri_url": "",
@@ -34,6 +39,11 @@ class Config:
         "token": "",
         "timeout_sec": 10,
     })
+
+    @property
+    def test(self) -> bool:
+        """Mod test: ceas reglabil, baza de date în memorie, oamenii „răspund” automat."""
+        return self.sursa in ("simulator", "fisiere")
 
     @classmethod
     def load(cls, path: str | os.PathLike | None = None) -> "Config":

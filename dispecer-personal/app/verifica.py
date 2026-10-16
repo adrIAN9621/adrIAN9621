@@ -1,0 +1,41 @@
+"""Verifică un dosar cu date reale înainte de test.
+
+    python -m app.verifica date-reale
+"""
+from __future__ import annotations
+
+import sys
+import time
+
+from .integrations.fisiere import FileSource, _read
+
+
+def main(folder: str) -> int:
+    try:
+        src = FileSource(folder, replay=True)
+    except Exception as e:
+        print("EROARE:", e)
+        return 1
+    t0, t1 = src._snaps[0][0], src._snaps[-1][0]
+    fmt = lambda t: time.strftime("%d.%m %H:%M", time.localtime(t))
+    trains = src.trains(t0)
+    seen = {n for _, p in src._snaps for n in (_read(p).get("pozitii") or {})}
+    roles = {}
+    for p in src.people():
+        roles[p.role] = roles.get(p.role, 0) + 1
+    print(f"Instantanee:  {len(src._snaps)}  ({fmt(t0)} → {fmt(t1)})")
+    print(f"Trenuri în mers: {len(trains)}  · cu poziții InfoFer: {len(seen & {t.train for t in trains})}")
+    print(f"Personal: {roles}")
+    print(f"Echipaje pe tren (ultimul instantaneu): {len(src.crews(t1))}")
+    fara_mers = sorted(seen - {t.train for t in trains})
+    if fara_mers:
+        print(f"Trenuri cu poziție dar fără mers (ignorate): {', '.join(fara_mers[:20])}")
+    for w in src.warnings[:50]:
+        print("ATENȚIE:", w)
+    if len(src.warnings) > 50:
+        print(f"... încă {len(src.warnings) - 50} avertismente")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "date-reale"))
