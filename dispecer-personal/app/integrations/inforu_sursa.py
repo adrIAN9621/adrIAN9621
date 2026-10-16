@@ -239,19 +239,37 @@ class InfoRUSource(LocatiiSource):
 
     # ------------------------------------------------------------ echipaje
     def crews(self, now: float) -> list[CrewAssignment]:
-        """În echipaje.json trenul poate fi scris „584640” – îl legăm de circulația activă."""
-        active = list(self._state(now).keys())
+        """Echipajele din echipaje.json legate de trenurile din InfoRU.
+
+        Trenul poate fi „584640”, „584280/16” sau o listă „884918/16|584560/16” (comanda acoperă
+        locomotiva izolată și apoi trenul) – se alege trenul aflat acum în circulație.
+        """
+        self._reload_crews()
+        state = self._state(now)
         out = []
         for c in super().crews(now):
-            if c.train in active:
-                out.append(c)
-                continue
-            # Comanda poate scrie trenul mai scurt (58428 față de 584280 în InfoRU)
-            match = sorted(k for k in active if k.split("/")[0] == c.train
-                           or (len(c.train) >= 5 and k.split("/")[0].startswith(c.train)))
+            match = []
+            for t in c.train.split("|"):
+                if t in state:
+                    match.append(t)
+                    continue
+                base = t.split("/")[0]
+                match += [k for k in state if k.split("/")[0] == base
+                          or (len(base) >= 5 and "/" not in t and k.split("/")[0].startswith(base))]
             if match:
-                out.append(CrewAssignment(match[-1], c.person_id, c.role, c.start, c.station, c.name))
+                # dacă mai multe sunt în circulație: cel raportat cel mai recent
+                best = max(match, key=lambda k: max(state[k]["live"].passed.values(), default=0))
+                out.append(CrewAssignment(best, c.person_id, c.role, c.start, c.station, c.name))
         return out
+
+    def _reload_crews(self) -> None:
+        """Reimportul Excel-ului (echipaje.json nou) e preluat fără repornirea aplicației."""
+        p = self.dir / "echipaje.json"
+        mt = p.stat().st_mtime if p.exists() else 0
+        if mt != getattr(self, "_crews_mtime", None):
+            self._crews_mtime = mt
+            if mt:
+                self._crews = self._load_crews()
 
 
 def snapshot_rows(path: Path) -> list[dict]:

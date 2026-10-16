@@ -117,14 +117,78 @@ def _e_numar(v: str) -> bool:
 
 
 def gaseste_antet(rows: list[list[str]]) -> int:
-    """Rândul cu antetul: primul (din primele 20) cu ≥3 celule de text, urmat de un rând cu date.
+    """Rândul cu antetul: primul (din primele 20) cu ≥2 celule de text, urmat de un rând cu date.
     Titlul de deasupra („Comenzi Active (…)”) are o singură celulă, deci e sărit."""
     for i, r in enumerate(rows[:20]):
         cells = [c for c in r if c]
-        if len(cells) >= 3 and all(not _e_numar(c) for c in cells) and i + 1 < len(rows) \
-                and sum(1 for c in rows[i + 1] if c) >= 3:
+        if len(cells) >= 2 and all(not _e_numar(c) for c in cells) and i + 1 < len(rows) \
+                and sum(1 for c in rows[i + 1] if c) >= 2:
             return i
     return 0
+
+
+# ------------------------------------------------ formatul real CmdPers „Comenzi Active”
+# Locomotiva | Personal Locomotiva, unde a doua celulă are una sau mai multe comenzi lipite:
+# 202610_07721 - Comanda in Derulare | 16/10/2026 18:45 | 68420015, L88491816 | NUME1, NUME2
+COMANDA = re.compile(r"(\d{6}_\d{3,6})\s*-\s*([^|]+?)\s*\|\s*(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2})(.*?)(?=\d{6}_\d{3,6}\s*-|$)", re.S)
+TREN = re.compile(r"^[A-Za-z]?\d{6,8}[A-Za-z]?$")
+
+
+def tren_cheie(t: str) -> Optional[str]:
+    """68420015 → 684200/15 (tren + ziua, ca în InfoRU); L88491816 → 884918/16; 65719216A → 657192/16."""
+    d = re.sub(r"\D", "", t)
+    return f"{d[:-2]}/{d[-2:]}" if len(d) >= 7 else (d or None)
+
+
+def parse_comenzi(cell: str) -> list[dict]:
+    out = []
+    for m in COMANDA.finditer(cell or ""):
+        cod, stare, ora, rest = m.group(1), m.group(2).strip(), m.group(3), m.group(4)
+        trenuri, persoane = [], []
+        for seg in (s.strip() for s in rest.split("|")):
+            if not seg:
+                continue
+            items = [x.strip() for x in seg.split(",") if x.strip()]
+            if items and all(TREN.match(x) for x in items):
+                trenuri += items
+            else:
+                persoane += items
+        out.append({"cod": cod, "stare": stare, "in_derulare": "derulare" in _norm(stare),
+                    "ora": datetime.strptime(" ".join(ora.split()), "%d/%m/%Y %H:%M"),
+                    "trenuri": trenuri, "persoane": persoane})
+    return out
+
+
+def _nume(s: str) -> str:
+    return " ".join(w.capitalize() if not w.endswith(".") else w for w in s.split())
+
+
+def echipaje_din_comenzi(data: list[list[str]], header: list[str]) -> tuple[list[dict], dict]:
+    """Comenzile „in Derulare” → echipaje: primul nume = mecanic, al doilea = ajutor."""
+    hn = [_norm(h) for h in header]
+    ci = next((i for i, h in enumerate(hn) if "personal" in h), len(header) - 1)
+    li = next((i for i, h in enumerate(hn) if h.startswith("locomotiv")), 0)
+    echipaje, stat = [], {"comenzi": 0, "in_derulare": 0, "create": 0, "fara_tren": 0, "fara_personal": 0}
+    for r in data:
+        loco = r[li] if li < len(r) else ""
+        for c in parse_comenzi(r[ci] if ci < len(r) else ""):
+            stat["comenzi"] += 1
+            if not c["in_derulare"]:
+                stat["create"] += 1
+                continue
+            stat["in_derulare"] += 1
+            trenuri = list(dict.fromkeys(k for k in (tren_cheie(t) for t in c["trenuri"])
+                                         if k and not k.startswith("99999")))
+            if not trenuri:
+                stat["fara_tren"] += 1
+            if not c["persoane"]:
+                stat["fara_personal"] += 1
+                continue
+            for idx, nume in enumerate(c["persoane"][:2]):
+                echipaje.append({"tren": "|".join(trenuri) or "?", "id_personal": _nume(nume), "nume": _nume(nume),
+                                 "rol": "mecanic" if idx == 0 else "ajutor", "inceput": c["ora"].isoformat(),
+                                 "statie": "", "locomotiva": loco, "comanda": c["cod"]})
+    return echipaje, stat
 
 
 def tip(v: str) -> str:
@@ -167,6 +231,13 @@ def importa(path: Path, folder: Path) -> dict:
         encoding="utf-8")
 
     echipaje, sarite = [], 0
+    format_cmdpers = any("personal" in _norm(h) for h in header) or any(
+        COMANDA.search(c) for r in data[:5] for c in r)
+    if format_cmdpers:
+        echipaje, stat = echipaje_din_comenzi(data, header)
+        (folder / "echipaje.json").write_text(json.dumps(echipaje, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"antet": header, "coloane": cols, "randuri": len(data), "echipaje": len(echipaje), "sarite": 0,
+                "rand_antet": hdr_i + 1, "tipuri": [tip(v) for v in data[0]] if data else [], "cmdpers": stat}
     if {"tren", "persoana", "inceput"} <= cols.keys():
         for r in data:
             get = lambda k: (r[cols[k]] if k in cols and cols[k] < len(r) else "").strip()
@@ -211,6 +282,14 @@ def main(argv: list[str]) -> int:
     print(f"Antetul e pe rândul {r['rand_antet']}. Coloane (tipul valorilor din primul rând, fără valori):")
     for i, h in enumerate(r["antet"]):
         print(f"  {i + 1:>2}. {h or '(fără nume)'}  [{r['tipuri'][i] if i < len(r['tipuri']) else '–'}]")
+    if "cmdpers" in r:
+        s = r["cmdpers"]
+        print(f"Format „Comenzi Active” din Comandă: {s['comenzi']} comenzi – {s['in_derulare']} în derulare, "
+              f"{s['create']} create (încă neîncepute); {s['fara_tren']} în derulare fără tren, "
+              f"{s['fara_personal']} fără personal")
+        print(f"Scris {folder / 'echipaje.json'}: {r['echipaje']} oameni pe trenuri "
+              f"(primul nume din comandă = mecanic, al doilea = ajutor)")
+        return 0
     print("Cum le-am înțeles:")
     for camp in CAMPURI:
         i = r["coloane"].get(camp)

@@ -414,3 +414,42 @@ def test_crews_from_xlsx_tracked_on_inforu_train(tmp_path):
     assert pj and pj["train"] == "500010/16"
     assert eng.db.one("SELECT name FROM persons WHERE id='1234'")["name"] == "Popescu Ion"
     assert eng.db.q("SELECT * FROM requests")  # 10 h lucrate → caută înlocuitor
+
+
+def test_import_real_cmdpers_active_orders_format(tmp_path):
+    from app import comenzi_xlsx
+    f = tmp_path / "ComenziActive_2026_10_17_0043.xlsx"
+    _xlsx(f, [["Comenzi Active (2026_10_17_0043)"], ["Locomotiva", "Personal Locomotiva"],
+              [4000762, "202610_07721 - Comanda in Derulare | 16/10/2026 18:45 | 68420015 | SBENGHEA IONUT, MUNTEANU ADRIAN MIHAI"],
+              [4007023, "202610_09158 - Comanda in Derulare | 16/10/2026 19:00 | 68454016, L88505816 | CARAS COSTICA"
+                        "202610_09176 - Comanda Creata | 17/10/2026 07:00  | LUPU COSTEL"],
+              [6010883, "202610_09172 - Comanda in Derulare | 16/10/2026 23:00 | L84004116, 58470112, f58470112 | STANGA GEORGE ILIE, TABACITU MARIAN"],
+              [4008666, "202610_08034 - Comanda Creata | 14/10/2026 23:30"]])
+    r = comenzi_xlsx.importa(f, tmp_path / "d")
+    assert r["cmdpers"]["comenzi"] == 5 and r["cmdpers"]["in_derulare"] == 3 and r["cmdpers"]["create"] == 2
+    e = json.loads((tmp_path / "d" / "echipaje.json").read_text("utf-8"))
+    assert [(x["nume"], x["rol"], x["tren"]) for x in e] == [
+        ("Sbenghea Ionut", "mecanic", "684200/15"), ("Munteanu Adrian Mihai", "ajutor", "684200/15"),
+        ("Caras Costica", "mecanic", "684540/16|885058/16"),
+        ("Stanga George Ilie", "mecanic", "840041/16|584701/12"), ("Tabacitu Marian", "ajutor", "840041/16|584701/12")]
+    assert e[0]["inceput"] == "2026-10-16T18:45:00" and e[0]["locomotiva"] == "4000762"
+
+
+def test_crew_list_of_trains_matches_running_inforu_train(tmp_path):
+    from datetime import datetime
+    from app.clock import ManualClock
+    from app.config import Config
+    from app.db import DB
+    from app.engine import Engine
+    from app.integrations.inforu_sursa import InfoRUSource
+
+    folder, T0 = _inforu_folder(tmp_path)
+    (folder / "personal.json").unlink()
+    start = datetime.fromtimestamp(T0 - 2 * 3600).isoformat()
+    (folder / "echipaje.json").write_text(json.dumps([
+        {"tren": "884918/16|500010/16", "id_personal": "Caras Costica", "nume": "Caras Costica", "rol": "mecanic",
+         "inceput": start, "statie": ""}]), "utf-8")
+    src = InfoRUSource(folder, replay=True)
+    eng = Engine(Config(sursa="inforu"), DB(), ManualClock(T0 + 60), src, src, src)
+    eng.bootstrap()
+    assert eng.db.one("SELECT train FROM pontaj WHERE person_id='Caras Costica'")["train"] == "500010/16"
