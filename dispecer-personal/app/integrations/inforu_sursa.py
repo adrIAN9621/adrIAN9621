@@ -246,9 +246,11 @@ class InfoRUSource(LocatiiSource):
             if c.train in active:
                 out.append(c)
                 continue
-            match = sorted(k for k in active if k.split("/")[0] == c.train)
+            # Comanda poate scrie trenul mai scurt (58428 față de 584280 în InfoRU)
+            match = sorted(k for k in active if k.split("/")[0] == c.train
+                           or (len(c.train) >= 5 and k.split("/")[0].startswith(c.train)))
             if match:
-                out.append(CrewAssignment(match[-1], c.person_id, c.role, c.start, c.station))
+                out.append(CrewAssignment(match[-1], c.person_id, c.role, c.start, c.station, c.name))
         return out
 
 

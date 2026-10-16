@@ -63,6 +63,7 @@ class CrewAssignment:
     role: str
     start: float                  # ora luării în primire
     station: str
+    name: str = ""                # numele, dacă persoana nu e încă în lista de personal
 
 
 class MersTrenuri(Protocol):

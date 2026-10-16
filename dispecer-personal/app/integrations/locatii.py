@@ -100,11 +100,12 @@ class LocatiiSource(FileSource):
             return []
         out = []
         for r in _read(p):
-            code = self.station(r["statie"])
-            if not code:
-                self.warnings.append(f"Echipaj tren {r['tren']}: stație necunoscută „{r['statie']}”")
-                continue
-            out.append(CrewAssignment(str(r["tren"]), str(r["id_personal"]), r["rol"], _ts(r["inceput"]), code))
+            code = self.station(r.get("statie") or "")
+            if not code:  # stația fără coordonate nu oprește urmărirea orelor – doar afișarea pe hartă
+                self.warnings.append(f"Echipaj tren {r['tren']}: stație fără coordonate „{r.get('statie')}”")
+                code = r.get("statie") or "?"
+            out.append(CrewAssignment(str(r["tren"]), str(r["id_personal"]), r["rol"], _ts(r["inceput"]), code,
+                                      r.get("nume", "")))
         return out
 
     def _scan(self) -> None:

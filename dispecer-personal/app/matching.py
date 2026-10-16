@@ -73,6 +73,8 @@ def rank(cfg: Config, now: float, points: list[HandoverPoint], people: Iterable[
         points = [p for p in points if p.station == only_station] or points
     out: list[Candidate] = []
     for p in people:
+        if p.get("lat") is None or p.get("lon") is None:
+            continue  # fără domiciliu cunoscut nu putem calcula distanța
         best: Optional[Candidate] = None
         for hp in points:
             if p.get("status") == "pauza" and p.get("pauza_de_la"):

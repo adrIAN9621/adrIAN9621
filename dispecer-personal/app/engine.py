@@ -94,8 +94,14 @@ class Engine:
             # rolul e deja acoperit pe tren (ex. de schimbul făcut de aplicație) sau omul e pe alt tren
             taken = self.db.one("SELECT id FROM pontaj WHERE active=1 AND ((train=? AND role=?) OR person_id=?)",
                                 [c.train, c.role, c.person_id])
-            if taken or not self.db.one("SELECT id FROM persons WHERE id=?", [c.person_id]):
+            if taken:
                 continue
+            if not self.db.one("SELECT id FROM persons WHERE id=?", [c.person_id]):
+                if not c.name:
+                    continue
+                # omul din comandă nu e în lista de personal: îl urmărim fără domiciliu (nu poate fi propus)
+                self.db.insert("persons", id=c.person_id, name=c.name, role=c.role, phone="", home_city="",
+                               lat=None, lon=None, pin="", status="pe_tren")
             self.db.insert("pontaj", train=c.train, person_id=c.person_id, role=c.role, start=c.start,
                            start_station=c.station, active=1, source="comandă personal")
             self.db.update("persons", c.person_id, status="pe_tren", status_until=None)

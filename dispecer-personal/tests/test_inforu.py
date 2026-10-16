@@ -349,3 +349,68 @@ def test_operator_selected_from_menu_and_aspx_page(srv):
     assert ("GET", "/Home/SetOtf?otf=CarpaticaFeroviarSA") in STATE["hits"]
     assert not any("CargoTransVagon" in p for _, p in STATE["hits"])
     assert any("operator ales" in p for p in ir.pasi)
+
+
+# ------------------------------------------------ import ComenziActive_*.xlsx
+def _xlsx(path, rows):
+    import zipfile
+    from xml.sax.saxutils import escape
+    strings, sheet_rows = [], []
+    for ri, row in enumerate(rows, 1):
+        cells = []
+        for ci, v in enumerate(row):
+            ref = chr(65 + ci) + str(ri)
+            if isinstance(v, (int, float)):
+                cells.append(f'<c r="{ref}"><v>{v}</v></c>')
+            else:
+                strings.append(v)
+                cells.append(f'<c r="{ref}" t="s"><v>{len(strings) - 1}</v></c>')
+        sheet_rows.append(f'<row r="{ri}">{"".join(cells)}</row>')
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("xl/workbook.xml", f'<workbook {ns} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                                      '<sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels", '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="ws"/></Relationships>')
+        z.writestr("xl/sharedStrings.xml", f'<sst {ns}>' + "".join(f"<si><t>{escape(s)}</t></si>" for s in strings) + "</sst>")
+        z.writestr("xl/worksheets/sheet1.xml", f'<worksheet {ns}><sheetData>{"".join(sheet_rows)}</sheetData></worksheet>')
+
+
+def test_import_comenzi_active_xlsx(tmp_path):
+    from app import comenzi_xlsx
+    f = tmp_path / "ComenziActive_2026_10_17_0043.xlsx"
+    _xlsx(f, [["Comenzi active 17.10.2026"],
+              ["Marca", "Nume si prenume", "Functie", "Nr. tren", "Data prezentare", "Statie prezentare", "Locomotiva"],
+              ["1234", "Popescu Ion", "Mecanic", "584280", 46311.75, "Constanta", "91530401234"],
+              ["5678", "Ionescu Dan", "Mecanic ajutor", "58428", "16.10.2026 18:00", "Constanta", "91530401234"],
+              ["", "", "", "", "", "", ""]])
+    r = comenzi_xlsx.importa(f, tmp_path / "date")
+    assert r["randuri"] == 2 and r["echipaje"] == 2
+    e = json.loads((tmp_path / "date" / "echipaje.json").read_text("utf-8"))
+    assert e[0]["tren"] == "584280" and e[0]["id_personal"] == "1234" and e[0]["rol"] == "mecanic"
+    assert e[0]["inceput"].startswith("2026-10-16T18:00")       # număr de serie Excel → dată
+    assert e[1]["rol"] == "ajutor" and e[1]["inceput"] == "2026-10-16T18:00:00"
+
+
+def test_crews_from_xlsx_tracked_on_inforu_train(tmp_path):
+    """Echipajul din Comandă (fără personal.json) apare pe trenul InfoRU și i se urmăresc orele."""
+    import time as _t
+    from datetime import datetime
+    from app.clock import ManualClock
+    from app.config import Config
+    from app.db import DB
+    from app.engine import Engine
+    from app.integrations.inforu_sursa import InfoRUSource
+
+    folder, T0 = _inforu_folder(tmp_path)
+    (folder / "personal.json").unlink()
+    (folder / "echipaje.json").write_text(json.dumps([
+        {"tren": "50001", "id_personal": "1234", "nume": "Popescu Ion", "rol": "mecanic",
+         "inceput": datetime.fromtimestamp(T0 - 10 * 3600).isoformat(), "statie": "Statie Necunoscuta"}]), "utf-8")
+    src = InfoRUSource(folder, replay=True)
+    eng = Engine(Config(sursa="inforu"), DB(), ManualClock(T0 + 60), src, src, src)
+    eng.bootstrap()
+    pj = eng.db.one("SELECT * FROM pontaj WHERE person_id='1234' AND active=1")
+    assert pj and pj["train"] == "500010/16"
+    assert eng.db.one("SELECT name FROM persons WHERE id='1234'")["name"] == "Popescu Ion"
+    assert eng.db.q("SELECT * FROM requests")  # 10 h lucrate → caută înlocuitor
