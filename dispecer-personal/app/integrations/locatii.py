@@ -34,6 +34,7 @@ ORIZONT_KM = 300.0          # cât de departe în față căutăm stații de sch
 CON_DIRECTIE = 60.0         # ± grade față de direcția de mers
 VITEZA_IMPLICITA = 50.0     # km/h dacă trenul stă sau nu avem destule puncte
 DISPARUT_DUPA = 3 * H       # fără poziții noi atâta timp → considerăm trenul ajuns
+DIRECTIE_MAX = 12 * H       # cât de vechi poate fi ultimul deplasament folosit pentru direcție (tren oprit)
 TRACK_FACTOR = 1.25         # linia ferată e mai lungă decât linia dreaptă
 
 
@@ -86,6 +87,7 @@ class LocatiiSource(FileSource):
         self._tracks: dict[str, list[Point]] = {}
         self._times: list[float] = []
         self._memo: tuple[float, dict] = (-1.0, {})
+        self._pcache: dict[str, tuple[int, Point, dict]] = {}  # tren -> treceri deja calculate
         self._scan()
         if not self._times and self.cere_date:
             raise ValueError(f"Nu există înregistrări în {self.dir / 'locatii'}")
@@ -161,11 +163,20 @@ class LocatiiSource(FileSource):
         self._memo = (now, out)
         return out
 
-    def _passed(self, pts: list[Point]) -> dict[str, float]:
-        """Ultima trecere prin fiecare stație (cu interpolare între două poziții)."""
+    def _passed(self, pts: list[Point], key: Optional[str] = None) -> dict[str, float]:
+        """Ultima trecere prin fiecare stație (cu interpolare între două poziții).
+
+        Cu `key` (numărul trenului) segmentele deja calculate la ciclul anterior nu se mai
+        recalculează: pozițiile unui tren doar se adaugă la final, deci reluăm de unde am rămas.
+        """
         passed: dict[str, float] = {}
         codes = [c for c in geo.STATIONS if not c.startswith("@")]
-        for a, b in zip(pts, pts[1:]):
+        start = 0
+        if key is not None:
+            c = self._pcache.get(key)
+            if c and 0 < c[0] <= len(pts) and pts[c[0] - 1] is c[1]:
+                start, passed = c[0] - 1, dict(c[2])
+        for a, b in zip(pts[start:], pts[start + 1:]):
             lo_lat, hi_lat = min(a.lat, b.lat) - 0.05, max(a.lat, b.lat) + 0.05
             lo_lon, hi_lon = min(a.lon, b.lon) - 0.07, max(a.lon, b.lon) + 0.07
             for c in codes:
@@ -175,6 +186,8 @@ class LocatiiSource(FileSource):
                 d, f = geo.closest_on_segment(a.lat, a.lon, b.lat, b.lon, sl, so)
                 if d <= RAZA_STATIE_KM:
                     passed[c] = a.t + f * (b.t - a.t)
+        if key is not None and pts:
+            self._pcache[key] = (len(pts), pts[-1], dict(passed))
         if pts:
             last = pts[-1]
             for c in codes:
@@ -185,10 +198,12 @@ class LocatiiSource(FileSource):
 
     def _train_state(self, n: str, pts: list[Point], now: float) -> dict:
         cur = pts[-1]
-        # direcția: față de ultima poziție aflată la cel puțin 2 km în ultima oră
+        # direcția: față de ultima poziție aflată la cel puțin 2 km (ultimul deplasament);
+        # un tren care stă de peste o oră în stație își păstrează direcția de mers,
+        # altfel stațiile din spate ar deveni „în față”
         heading = None
         for p in reversed(pts[:-1]):
-            if cur.t - p.t > H:
+            if cur.t - p.t > DIRECTIE_MAX:
                 break
             if geo.haversine_km(p.lat, p.lon, cur.lat, cur.lon) >= 2:
                 heading = geo.bearing_deg(p.lat, p.lon, cur.lat, cur.lon)
@@ -224,7 +239,7 @@ class LocatiiSource(FileSource):
         geo.STATIONS[end] = ("(în direcția de mers)", far[1], far[2])
         stops.append(StopTime(end, t0 + 48 * H, None))
 
-        passed = self._passed(pts)
+        passed = self._passed(pts, n)
         gone = now - cur.t > DISPARUT_DUPA
         if gone:
             passed[end] = cur.t

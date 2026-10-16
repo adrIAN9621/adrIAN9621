@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import bisect
 import json
+import re
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,15 @@ def _ts(v: Any) -> Optional[float]:
         return None
     if isinstance(v, (int, float)):
         return float(v)
-    return datetime.fromisoformat(str(v)).timestamp()
+    s = str(v).strip()
+    m = re.fullmatch(r"/?Date\((-?\d+)(?:[+-]\d{4})?\)/?", s)
+    if m:  # formatul JSON vechi ASP.NET: /Date(1760000000000)/ (milisecunde UTC)
+        return int(m.group(1)) / 1000.0
+    # Python < 3.11 nu acceptă „Z” și nici mai mult de 6 zecimale (.NET dă 7)
+    if s.endswith(("Z", "z")):
+        s = s[:-1] + "+00:00"
+    s = re.sub(r"(\.\d{6})\d+", r"\1", s)
+    return datetime.fromisoformat(s).timestamp()
 
 
 def _norm(s: str) -> str:
