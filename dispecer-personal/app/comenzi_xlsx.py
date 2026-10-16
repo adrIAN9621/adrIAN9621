@@ -47,18 +47,30 @@ def _col_index(ref: str) -> int:
     return n - 1
 
 
-def citeste_xlsx(path: Path) -> list[list[str]]:
-    """Primul sheet ca listă de rânduri (text). Datele Excel rămân numere – vezi _ora()."""
+def foi(path: Path) -> list[tuple[str, list[list[str]]]]:
+    """Toate foile: [(nume, rânduri)]."""
     with zipfile.ZipFile(path) as z:
         shared = []
         if "xl/sharedStrings.xml" in z.namelist():
             for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall("m:si", NS):
                 shared.append("".join(t.text or "" for t in si.iter("{%s}t" % NS["m"])))
         wb = ET.fromstring(z.read("xl/workbook.xml"))
-        first = wb.find("m:sheets/m:sheet", NS).get(REL)
-        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
-        target = next(r.get("Target") for r in rels if r.get("Id") == first)
-        sheet = ET.fromstring(z.read("xl/" + target.lstrip("/").removeprefix("xl/")))
+        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+        out = []
+        for sh in wb.findall("m:sheets/m:sheet", NS):
+            target = rels.get(sh.get(REL), "")
+            name = "xl/" + target.lstrip("/").removeprefix("xl/")
+            if name in z.namelist():
+                out.append((sh.get("name", ""), _randuri(ET.fromstring(z.read(name)), shared)))
+    return out
+
+
+def citeste_xlsx(path: Path) -> list[list[str]]:
+    """Foaia cu cele mai multe celule completate, ca listă de rânduri (text)."""
+    return max((r for _, r in foi(path)), key=lambda rows: sum(1 for r in rows for c in r if c), default=[])
+
+
+def _randuri(sheet, shared: list[str]) -> list[list[str]]:
     rows = []
     for r in sheet.iter("{%s}row" % NS["m"]):
         row: dict[int, str] = {}
@@ -70,7 +82,8 @@ def citeste_xlsx(path: Path) -> list[list[str]]:
                 val = "".join(x.text or "" for x in c.iter("{%s}t" % NS["m"]))
             else:
                 val = v.text if v is not None else ""
-            row[_col_index(c.get("r"))] = (val or "").strip()
+            ref = c.get("r")
+            row[_col_index(ref) if ref else len(row)] = (val or "").strip()
         if row:
             rows.append([row.get(i, "") for i in range(max(row) + 1)])
     return rows
@@ -183,6 +196,15 @@ def main(argv: list[str]) -> int:
         print("Nu găsesc fișierul ComenziActive_*.xlsx (exportați-l din Comandă → Comenzi active).")
         return 1
     folder = Path(argv[1]) if len(argv) > 1 else Path("date-reale")
+    print("Structura fișierului (rândurile 1-2 cu text, restul doar tipul valorilor):")
+    for name, rows in foi(path):
+        filled = sum(1 for r in rows for c in r if c)
+        print(f"  foaia „{name}”: {len(rows)} rânduri, {filled} celule completate")
+        for i, r in enumerate(rows[:6]):
+            cells = [(j, c) for j, c in enumerate(r) if c]
+            shown = [f"{chr(65 + j) if j < 26 else j}={c[:30]}" if i < 2 else f"{chr(65 + j) if j < 26 else j}:{tip(c)}"
+                     for j, c in cells]
+            print(f"    rând {i + 1}: " + (", ".join(shown) or "(gol)"))
     r = importa(path, folder)
     print(f"Fișier: {path}")
     print(f"Rânduri (comenzi): {r['randuri']}")
