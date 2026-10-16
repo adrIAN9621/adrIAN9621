@@ -20,6 +20,11 @@ ENGINEERS = """<html><head><title>Mecanici</title></head><body>
 <a href="/cmdpers_carpatica/Account/LogOff">Ieșire</a>
 <a href="/cmdpers_carpatica/LocomotiveEngineer/Delete/5">Șterge</a>
 <a href="/cmdpers_carpatica/LocomotiveEngineer/Activities?id=5">Activități</a>
+<a href="/cmdpers_carpatica/Comanda/Index?id=5&amp;action=delete">X</a>
+<a href="/cmdpers_carpatica/Comanda/Accepta/5">Acceptă</a>
+<a href="/cmdpers_carpatica/Notification/MarkRead/7">Citit</a>
+<a href="/cmdpers_carpatica/Comanda/Ack%69ons/5" onclick="return confirm('Sigur?')">Gata</a>
+<a href="/cmdpers_carpatica/Comanda/Details/9" data-ajax-method="POST">Detalii</a>
 <form action="/cmdpers_carpatica/LocomotiveEngineer/Search" method="post"><input name="nume"><input name="data"></form>
 <table id="grid"><tr><th>Nume</th><th>Tren</th><th>Început</th></tr>
 <tr><td>Popescu Ion</td><td>50421</td><td>16.10.2026 08:00</td></tr></table>
@@ -120,12 +125,13 @@ def test_write_requests_are_blocked_before_sending(server):
 def test_explore_reports_structure_without_unsafe_links(server, tmp_path):
     cp = cmdpers.CmdPers("ion", "secret", [server], timeout=3)
     cp.login()
-    report = cmdpers.explore(cp, tmp_path)
+    report = cmdpers.explore(cp, tmp_path, pauza=0)
     text = report.read_text("utf-8")
     assert "Nume | Tren | Început" in text and "GetActivities" in text and "LocomotiveEngineer/Search" in text
     assert "Popescu" not in text  # raportul nu conține date personale
     paths = [p for _, p in HITS]
     assert not any("LogOff" in p or "Delete" in p for p in paths)
+    assert not any(x in p for p in paths for x in ("delete", "Accepta", "MarkRead", "Comanda/Ack", "Details"))
     assert all(m == "GET" for m, p in HITS if "Login" not in p)
     saved = cmdpers.engineer_tables(cp, tmp_path)
     rows = json.loads(saved[0].read_text("utf-8"))["tabele"][0]["randuri"]
@@ -147,3 +153,51 @@ def test_live_source_reads_cmdpers_and_saves_snapshots(server, tmp_path):
     eng.bootstrap()
     assert "50421" in eng.live and abs(eng.live["50421"].lat - 45.66) < 1e-6
     assert list((tmp_path / "live" / "locatii").glob("*.json"))
+
+
+@pytest.mark.parametrize("path", [
+    "/Comanda/SaveOrder", "/Comanda/GetAndUpdate", "/X/SearchAndDelete", "/Comanda/Accept", "/Order/Assign",
+    "/Pontaj/Validate", "/Engineer/Edit/5", "/Comanda/Accept/GetData", "/Order/Assign/List", "/Comanda/GetAndAccept",
+    "/Comanda/LoadAndConfirm", "/Comanda/Sav%65", "/Comanda/Accept/../GetData", "/Comanda/GetData?action=delete",
+    "/Comanda/GetX%2F..%2FAccept", "/Comanda/GetX;Accept", "/Admin/Account/Login", "/Account/Login?ReturnUrl=x",
+    "http://evil.example/cmdpers_carpatica/X/GetData",
+])
+def test_post_guard_blocks_write_like_paths(path):
+    cp = cmdpers.CmdPers("ion", "secret", ["http://10.0.0.11"])
+    cp.server = "http://10.0.0.11"
+    with pytest.raises(cmdpers.Refuzat):
+        cp._verifica("POST", cp._url(path))
+
+
+@pytest.mark.parametrize("path", ["/Comanda/Accepta/5", "/Comanda/Confirma/5", "/Comanda/Aloca/5", "/Comanda/Asigneaza",
+                                  "/Pontaj/Valideaza", "/Comanda/Inchide", "/Comanda/Finalizeaza", "/Raport/Genereaza",
+                                  "/Comanda/Trimite", "/X/Sterge", "/X/Adauga", "/X/Salveaza", "/X/Modifica",
+                                  "/Notification/MarkRead", "/Account/SignOut", "/Account/Log%4Fff", "/Home/Index?action=delete"])
+def test_get_guard_blocks_romanian_and_unsafe_actions(path):
+    cp = cmdpers.CmdPers("ion", "secret", ["http://10.0.0.11"])
+    cp.server = "http://10.0.0.11"
+    with pytest.raises(cmdpers.Refuzat):
+        cp._verifica("GET", cp._url(path))
+
+
+def test_guard_allows_reads_and_only_get_post():
+    cp = cmdpers.CmdPers("ion", "secret", ["http://10.0.0.11"])
+    cp.server = "http://10.0.0.11"
+    for p in ("/LocomotiveLocation/GetLatestLocation", "/LocomotiveEngineer/Search", "/Account/Login"):
+        cp._verifica("POST", cp._url(p))
+    for p in ("/", "/Home/Index", "/LocomotiveLocation/Index", "/LocomotiveEngineer/Index", "/X/Details/5?id=1"):
+        cp._verifica("GET", cp._url(p))
+    for m in ("PUT", "DELETE", "PATCH", "HEAD"):
+        with pytest.raises(cmdpers.Refuzat):
+            cp._verifica(m, cp._url("/X/GetData"))
+
+
+def test_wrong_password_is_not_retried_and_never_leaks(server):
+    cp = cmdpers.CmdPers("ion", "parola-gresita", [server], timeout=3)
+    with pytest.raises(cmdpers.LoginEsuat) as e1:
+        cp.login()
+    n = len(HITS)
+    with pytest.raises(cmdpers.LoginEsuat) as e2:
+        cp.locations()
+    assert len(HITS) == n  # fără încercări noi de logare (contul nu se blochează)
+    assert "parola-gresita" not in str(e1.value) + str(e2.value)

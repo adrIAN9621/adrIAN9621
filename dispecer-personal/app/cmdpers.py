@@ -38,9 +38,22 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) DispecerPersonal/1.0 (doar citir
 CONFIG = Path(__file__).resolve().parent.parent / "cmdpers.json"
 
 # POST e permis doar pentru acțiuni care citesc; cuvintele interzise câștigă mereu.
-POST_PERMIS = re.compile(r"/(Get|Search|Cauta|Find|List|Load|Read)[A-Za-z]*$", re.I)
-INTERZIS = re.compile(r"(save|delete|sterge|update|create|add|edit|insert|set|remove|approve|aproba|"
-                      r"trimite|send|import|upload|logoff|logout|deconect|reset|change|modif|anul|cancel)", re.I)
+# Ruta trebuie să fie exact /cmdpers_carpatica/{controller}/{acțiune} – fără segment {id}, altfel
+# /Comanda/Accept/GetData ar trece (în ASP.NET MVC acțiunea e Accept, „GetData” e doar id-ul).
+POST_PERMIS = re.compile(rf"^{BASE_PATH}/[A-Za-z]+/(Get|Search|Cauta|Find|List|Load|Read)[A-Za-z]*$", re.I)
+# acțiuni compuse (GetAndAccept, LoadThenSave) – refuzate la POST
+POST_COMPUS = re.compile(r"(And|Then|Si|Apoi)[A-Z]")
+LOGIN_PATH = BASE_PATH + "/Account/Login"
+# Verificat pe cale + query, după decodarea %xx, pentru ORICE cerere (și GET – unele aplicații
+# ASP.NET modifică date și pe GET, ex. /Comanda/Accept?id=5). Mai bine o pagină sărită decât o scriere.
+INTERZIS = re.compile(
+    r"(save|salv|delete|sterg|update|actualiz|create|creea|add|adaug|edit|insert|set|remove|move|muta|"
+    r"approve|aproba|accept|confirm|reject|respinge|refuz|assign|asign|aloca|valid|inchide|close|"
+    r"finaliz|finish|complete|generate|genere|submit|trimit|send|emit|publish|import|upload|"
+    r"logoff|logout|signout|sign|semn|deconect|reset|change|schimb|inlocu|replace|modif|anul|cancel|"
+    r"lock|toggle|mark|clear|dismiss|activate|activeaz|deactiv|dezactiv|archiv|arhiv|restore|restaur|"
+    r"execut|ruleaz|process|proces|register|inregistr|sync|sincron|ponteaz|start|stop|porneste|opreste|"
+    r"switch|impersonat|copy|copiaz|clone|duplic|write|apply)", re.I)
 # pagini interesante pentru dispecerat
 INTERESANT = re.compile(r"(engineer|mecanic|personal|employee|angajat|comand|order|activit|pontaj|"
                         r"timesheet|schedule|program|tura|shift|crew|echipaj|train|tren|locomotiv)", re.I)
@@ -59,6 +72,16 @@ class Refuzat(Exception):
 
 class LoginEsuat(Exception):
     pass
+
+
+def _decodat(s: str) -> str:
+    """Decodează %xx de mai multe ori (%2553 → %53 → S), ca serverul să nu vadă altceva decât garda."""
+    for _ in range(5):
+        d = urllib.parse.unquote_plus(s)
+        if d == s:
+            break
+        s = d
+    return s
 
 
 def csrf_token(text: str) -> str:
@@ -86,6 +109,8 @@ class CmdPers:
         self.servers = [s.rstrip("/") for s in servers]
         self.timeout = timeout
         self.server: Optional[str] = None
+        # după „parolă greșită” nu mai reîncercăm automat (contul s-ar putea bloca în AD)
+        self.credentiale_gresite = False
         self.jar = http.cookiejar.CookieJar()
         # ProxyHandler({}) = conexiune directă în rețeaua internă, fără proxy-uri de sistem
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
@@ -99,13 +124,29 @@ class CmdPers:
             path = BASE_PATH + ("" if path.startswith("/") else "/") + path
         return self.server + path
 
+    def _verifica(self, method: str, url: str) -> None:
+        """Garda de doar-citire – ridică Refuzat înainte să plece cererea."""
+        u = urllib.parse.urlsplit(url)  # urlsplit păstrează „;…” în cale (urlparse l-ar ascunde în params)
+        path, query = _decodat(u.path), _decodat(u.query)
+        if method not in ("GET", "POST"):
+            raise Refuzat(f"Metodă interzisă (doar citire): {method}")
+        if f"{u.scheme}://{u.netloc}".lower() not in [s.lower() for s in self.servers]:
+            raise Refuzat(f"Server necunoscut (doar cele din configurare): {u.netloc}")
+        if ".." in path.split("/") or "\\" in path or ";" in path:
+            raise Refuzat(f"Cale suspectă: {path}")
+        login = path.rstrip("/").lower() == LOGIN_PATH.lower()
+        if login and (method == "GET" or not query):
+            return
+        if INTERZIS.search(path) or INTERZIS.search(query):
+            raise Refuzat(f"{method} blocat (doar citire): {path}")
+        if method == "POST" and (query or not POST_PERMIS.search(path.rstrip("/"))
+                                 or POST_COMPUS.search(path.rstrip("/").rsplit("/", 1)[-1])):
+            raise Refuzat(f"POST blocat (doar citire): {path}")
+
     def _raw(self, method: str, url: str, data: Optional[dict] = None, ajax: bool = False,
              referer: Optional[str] = None) -> tuple[str, str, str]:
         """→ (url final după redirect, content-type, text)"""
-        path = urllib.parse.urlparse(url).path
-        if method != "GET":
-            if INTERZIS.search(path) or not POST_PERMIS.search(path.rstrip("/")) and not path.endswith("/Account/Login"):
-                raise Refuzat(f"POST blocat (doar citire): {path}")
+        self._verifica(method, url)
         body = urllib.parse.urlencode(data or {}, doseq=True).encode() if method == "POST" else None
         req = urllib.request.Request(url, data=body, method=method)
         req.add_header("User-Agent", UA)
@@ -136,16 +177,23 @@ class CmdPers:
                 }, referer=url)
                 if "/account/login" in final.lower() or 'name="Password"' in text:
                     errors.append(f"{srv}: utilizator sau parolă greșite")
+                    self.credentiale_gresite = True
                     continue
+                self.credentiale_gresite = False
                 return srv
             except (urllib.error.URLError, TimeoutError, OSError) as e:
                 errors.append(f"{srv}: {getattr(e, 'reason', e)}")
         self.server = None
         raise LoginEsuat("Logare CmdPers eșuată – " + "; ".join(errors))
 
+    def _relogin(self) -> None:
+        if self.credentiale_gresite:
+            raise LoginEsuat("Utilizator / parolă CmdPers greșite – nu mai reîncerc automat (reporniți după corectare).")
+        self.login()
+
     def _ensure(self) -> None:
         if self.server is None:
-            self.login()
+            self._relogin()
 
     def request(self, method: str, path: str, data: Optional[dict] = None, ajax: bool = False,
                 referer: Optional[str] = None) -> tuple[str, str, str]:
@@ -163,7 +211,7 @@ class CmdPers:
                     raise
                 self.jar.clear()
                 self.server = None
-                self.login()
+                self._relogin()
         raise AssertionError("unreachable")
 
     def get(self, path: str) -> str:
@@ -216,6 +264,11 @@ class _Page(HTMLParser):
         a = dict(attrs)
         if tag == "a" and a.get("href"):
             self._a = [a["href"], ""]
+            # confirm(...) / data-method=post / data-ajax-confirm = buton de modificare deghizat în link
+            semne = " ".join(f"{k}={v}" for k, v in attrs if k != "href" and v).lower()
+            if (re.search(r"confirm\(|data-(ajax-)?confirm|btn-danger", semne + " " + " ".join(k for k, _ in attrs))
+                    or (a.get("data-method") or a.get("data-ajax-method") or "get").lower() != "get"):
+                self._a = None
         elif tag == "form":
             self._form = {"action": a.get("action", ""), "method": (a.get("method") or "get").upper(),
                           "id": a.get("id", ""), "fields": []}
@@ -301,7 +354,7 @@ def _norm_link(href: str, base: str) -> Optional[str]:
 
 
 # ================================================================ explorare
-def explore(cp: CmdPers, out: Path, max_pages: int = 80) -> Path:
+def explore(cp: CmdPers, out: Path, max_pages: int = 80, pauza: float = 1.0) -> Path:
     """Parcurge meniurile aplicației (doar GET, fără linkuri de modificare / logout) și scrie
     un raport cu STRUCTURA paginilor: titlu, formulare de căutare, coloanele tabelelor, URL-uri AJAX.
     Raportul nu conține date personale (doar numărul de rânduri), deci poate fi trimis mai departe.
@@ -315,9 +368,11 @@ def explore(cp: CmdPers, out: Path, max_pages: int = 80) -> Path:
     while queue and len(seen) < max_pages:
         path = queue.pop(0)
         key = path.split("?")[0].rstrip("/").lower()
-        if key in seen or INTERZIS.search(path.split("?")[0]):
+        if key in seen or INTERZIS.search(_decodat(path)):
             continue
         seen.add(key)
+        if len(seen) > 1:
+            time.sleep(pauza)  # fără rafale spre serverul de producție
         try:
             final, ct, text = cp.request("GET", path)
         except Exception as e:
@@ -337,7 +392,7 @@ def explore(cp: CmdPers, out: Path, max_pages: int = 80) -> Path:
         })
         for href, _text in page.links:
             n = _norm_link(href, final)
-            if n and n.split("?")[0].rstrip("/").lower() not in seen and not INTERZIS.search(n.split("?")[0]):
+            if n and n.split("?")[0].rstrip("/").lower() not in seen and not INTERZIS.search(_decodat(n)):
                 queue.append(n)
     report.sort(key=lambda r: (not r.get("interesant"), r["pagina"]))
     (out / "raport.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -396,7 +451,7 @@ def _record(cp: CmdPers, folder: Path, interval: int) -> None:
             print(acum, f"salvat {len(items)} locomotive")
         except Exception as e:  # o citire ratată nu oprește înregistrarea
             print(acum, "eroare:", e)
-        time.sleep(interval)
+        time.sleep(max(interval, 15))  # minim 15 s între cereri – nu încărcăm producția
 
 
 def main(argv: list[str]) -> int:
