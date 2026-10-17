@@ -28,11 +28,14 @@ COLOANE = {
     "nume": ["nume si prenume", "nume prenume", "numele", "nume", "personal", "angajat", "salariat"],
     "prenume": ["prenume"],
     "functie": ["functie", "functia", "calificare", "meserie", "post", "categorie", "tip personal"],
-    "localitate": ["localitate domiciliu", "domiciliu", "localitate", "oras", "resedinta", "adresa"],
+    "localitate": ["statie apropiata", "statia apropiata", "localitate domiciliu", "domiciliu", "localitate",
+                   "oras", "resedinta", "adresa", "statie"],
     "judet": ["judet"],
     "telefon": ["telefon", "mobil", "tel"],
     "marca": ["marca", "matricol", "cod angajat"],
     "depou": ["depou", "remiza", "punct de lucru", "baza"],
+    "concediu": ["concediu", "absent"],
+    "incheiere": ["data incheiere", "data plecare", "data incetare"],
 }
 
 
@@ -120,6 +123,8 @@ def rol_din_functie(f: str) -> Optional[str]:
     n = _norm(f)
     if not n:
         return "mecanic"
+    if re.search(r"electro|instruct|revizor|sef|inspector|dispecer", n):
+        return None  # electromecanic, mecanic instructor, șef… – nu conduc trenul
     if re.search(r"ajut|asist|aj\b|\bam\b", n):
         return "ajutor"
     if re.search(r"mecanic|mec\b|conduc|loc\b|locomotiv", n):
@@ -153,6 +158,9 @@ def importa(path: Path, folder: Path) -> dict:
     get = lambda r, k: (r[cols[k]].strip() if k in cols and cols[k] < len(r) else "")
     statii = Statii()
     oameni, fara_loc, alta_functie = [], [], 0
+    from collections import Counter
+    functii: Counter = Counter()
+    plecati = 0
     for r in data:
         nume = get(r, "nume")
         if get(r, "prenume") and get(r, "prenume") not in nume:
@@ -160,6 +168,10 @@ def importa(path: Path, folder: Path) -> dict:
         if not nume:
             continue
         rol = rol_din_functie(get(r, "functie"))
+        functii[(get(r, "functie") or "(goală)", rol or "–")] += 1
+        if get(r, "incheiere"):
+            plecati += 1
+            continue
         if rol is None:
             alta_functie += 1
             continue
@@ -170,11 +182,12 @@ def importa(path: Path, folder: Path) -> dict:
             continue
         oameni.append({"id": id_persoana(nume), "nume": nume_afisat(nume), "rol": rol, "telefon": get(r, "telefon"),
                        "localitate": loc_text, "lat": loc[1], "lon": loc[2], "statie_domiciliu": loc[0],
-                       "marca": get(r, "marca")})
+                       "marca": get(r, "marca"), "concediu": bool(get(r, "concediu"))})
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "personal.json").write_text(json.dumps(oameni, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"antet": header, "rand_antet": h + 1, "coloane": cols, "randuri": len(data), "oameni": len(oameni),
-            "fara_loc": fara_loc, "alta_functie": alta_functie, "tipuri": [tip(v) for v in data[0]] if data else []}
+            "fara_loc": fara_loc, "alta_functie": alta_functie, "functii": functii.most_common(),
+            "plecati": plecati, "concediu": sum(1 for o in oameni if o["concediu"]), "tipuri": [tip(v) for v in data[0]] if data else []}
 
 
 def cel_mai_nou() -> Optional[Path]:
@@ -199,12 +212,16 @@ def main(argv: list[str]) -> int:
     for camp in COLOANE:
         i = r["coloane"].get(camp)
         print(f"  {camp:<11} → {r['antet'][i] if i is not None else '(negăsit)'}")
-    print(f"Rânduri: {r['randuri']} · personal de locomotivă cu localitate găsită: {r['oameni']} · "
-          f"altă funcție: {r['alta_functie']} · localitate negăsită: {len(r['fara_loc'])}")
+    print("Funcții găsite → cum le folosesc (mecanic / ajutor / – = nu e personal de tren):")
+    for (f, rol), n in r["functii"][:25]:
+        print(f"  {n:>4} × {f}  → {rol}")
+    print(f"Rânduri: {r['randuri']} · personal de locomotivă cu stație găsită: {r['oameni']} "
+          f"(din care în concediu: {r['concediu']}) · altă funcție: {r['alta_functie']} · "
+          f"plecați (dată încheiere): {r['plecati']} · stație negăsită: {len(r['fara_loc'])}")
     if r["fara_loc"]:
         from collections import Counter
         top = Counter(r["fara_loc"]).most_common(25)
-        print("Localități negăsite (cele mai dese):", ", ".join(f"{k} ({v})" for k, v in top))
+        print("Stații / localități negăsite (cele mai dese):", ", ".join(f"{k} ({v})" for k, v in top))
     print(f"Scris {folder / 'personal.json'}")
     return 0
 

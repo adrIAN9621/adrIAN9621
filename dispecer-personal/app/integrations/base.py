@@ -53,6 +53,7 @@ class Person:
     lat: float
     lon: float
     pin: str = "1234"
+    disponibil: bool = True       # False = în concediu
 
 
 @dataclass

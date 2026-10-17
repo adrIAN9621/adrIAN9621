@@ -99,7 +99,7 @@ class Fake(BaseHTTPRequestHandler):
         if self.path.endswith("/GetLatestLocation"):
             assert form.get("__RequestVerificationToken") == ["tok123"]
             data = [{"LocomotiveNumber": "91530401234", "Lat": "45.66", "Lng": "25.61",
-                     "Timestamp": "2026-10-16T19:00:00", "TrainInfo": [{"TrainNumber": "50421"}]}]
+                     "Timestamp": __import__("datetime").datetime.now().replace(microsecond=0).isoformat(), "TrainInfo": [{"TrainNumber": "50421"}]}]
             return self._send(200, json.dumps(data), "application/json")
         return self._send(500, "nu ar fi trebuit")
 

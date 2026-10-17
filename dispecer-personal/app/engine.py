@@ -46,7 +46,7 @@ class Engine:
     def _sync_people(self) -> None:
         """Lista de personal (cu domiciliul) – la pornire și ori de câte ori sursa dă o listă nouă."""
         people = self.personal.people()
-        key = tuple((p.id, p.lat, p.lon, p.role, p.name) for p in people)
+        key = tuple((p.id, p.lat, p.lon, p.role, p.name, p.disponibil) for p in people)
         if key == getattr(self, "_people_key", None):
             return
         self._people_key = key
@@ -54,9 +54,12 @@ class Engine:
             if self.db.one("SELECT id FROM persons WHERE id = ?", [p.id]):
                 self.db.x("UPDATE persons SET name=?, role=?, phone=?, home_city=?, lat=?, lon=?, pin=? WHERE id=?",
                           [p.name, p.role, p.phone, p.home_city, p.lat, p.lon, p.pin, p.id])
+                if not p.disponibil:  # concediu: nu primește comenzi
+                    self.db.x("UPDATE persons SET status='indisponibil' WHERE id=? AND status='disponibil'", [p.id])
             else:
-                self.db.insert("persons", id=p.id, name=p.name, role=p.role, phone=p.phone,
-                               home_city=p.home_city, lat=p.lat, lon=p.lon, pin=p.pin, status="disponibil")
+                self.db.insert("persons", id=p.id, name=p.name, role=p.role, phone=p.phone, home_city=p.home_city,
+                               lat=p.lat, lon=p.lon, pin=p.pin,
+                               status="disponibil" if p.disponibil else "indisponibil")
 
     def run_forever(self, interval: float = 2.0) -> None:
         while not self._stop.is_set():

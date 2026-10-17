@@ -100,7 +100,7 @@ class FileSource:
                 continue
             out.append(Person(id=str(r["id"]), name=r["nume"], role=r["rol"], phone=r.get("telefon", ""),
                               home_city=r.get("localitate", ""), lat=float(r["lat"]), lon=float(r["lon"]),
-                              pin=str(r.get("pin") or "1234")))
+                              pin=str(r.get("pin") or "1234"), disponibil=not r.get("concediu")))
         return out
 
     def _load_timetables(self) -> dict[str, Timetable]:

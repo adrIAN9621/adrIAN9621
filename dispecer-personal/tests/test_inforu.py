@@ -501,3 +501,22 @@ def test_personal_and_orders_share_ids_so_free_people_become_candidates(tmp_path
     assert eng.db.one("SELECT status FROM persons WHERE id=?", [id_persoana("SBENGHEA IONUT")])["status"] == "pe_tren"
     off = eng.db.one("SELECT * FROM offers WHERE status='trimisa'")
     assert off and off["person_id"] == id_persoana("LIBER PE ACASA")
+
+
+
+def test_import_personal_real_columns(tmp_path):
+    """Coloanele reale din DatePersonal: Statie apropiata, Concediu, Data Incheiere."""
+    from app import personal_xls
+    f = tmp_path / "DatePersonal_x.xls"
+    f.write_text("""<table><tr><td>NrCrt</td><td>Nume/Prenume</td><td>Nr matricol</td><td>Functie</td>
+<td>Statie apropiata</td><td>Telefon</td><td>Data Angajare</td><td>Data Incheiere</td><td>Aria</td><td>Concediu</td></tr>
+<tr><td></td><td>MAXIM GHEORGHE</td><td>A1</td><td>MECANIC LOCOMOTIVA</td><td>Brasov</td><td>0722</td><td>01.01.2020</td><td></td><td>Centru</td><td></td></tr>
+<tr><td></td><td>SERBAN DANIEL</td><td>A2</td><td>MECANIC AJUTOR</td><td>Predeal</td><td></td><td>01.01.2020</td><td></td><td>Centru</td><td>CO</td></tr>
+<tr><td></td><td>ION ELECTRO</td><td>A3</td><td>ELECTROMECANIC</td><td>Arad</td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td></td><td>PLECAT ION</td><td>A4</td><td>MECANIC LOCOMOTIVA</td><td>Arad</td><td></td><td></td><td>01.09.2026</td><td></td><td></td></tr>
+</table>""", encoding="utf-8")
+    r = personal_xls.importa(f, tmp_path / "d")
+    assert r["coloane"]["localitate"] == 4 and r["oameni"] == 2 and r["plecati"] == 1 and r["alta_functie"] == 1
+    p = json.loads((tmp_path / "d" / "personal.json").read_text("utf-8"))
+    assert [(x["nume"], x["rol"], x["statie_domiciliu"], x["concediu"]) for x in p] == [
+        ("Maxim Gheorghe", "mecanic", "BV", False), ("Serban Daniel", "ajutor", "PR", True)]
