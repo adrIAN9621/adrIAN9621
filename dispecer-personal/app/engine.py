@@ -52,13 +52,13 @@ class Engine:
         self._people_key = key
         for p in people:
             if self.db.one("SELECT id FROM persons WHERE id = ?", [p.id]):
-                self.db.x("UPDATE persons SET name=?, role=?, phone=?, home_city=?, lat=?, lon=?, pin=? WHERE id=?",
-                          [p.name, p.role, p.phone, p.home_city, p.lat, p.lon, p.pin, p.id])
+                self.db.x("UPDATE persons SET name=?, role=?, phone=?, home_city=?, lat=?, lon=?, pin=?, marca=? "
+                          "WHERE id=?", [p.name, p.role, p.phone, p.home_city, p.lat, p.lon, p.pin, p.marca, p.id])
                 if not p.disponibil:  # concediu: nu primește comenzi
                     self.db.x("UPDATE persons SET status='indisponibil' WHERE id=? AND status='disponibil'", [p.id])
             else:
                 self.db.insert("persons", id=p.id, name=p.name, role=p.role, phone=p.phone, home_city=p.home_city,
-                               lat=p.lat, lon=p.lon, pin=p.pin,
+                               lat=p.lat, lon=p.lon, pin=p.pin, marca=p.marca,
                                status="disponibil" if p.disponibil else "indisponibil")
 
     def run_forever(self, interval: float = 2.0) -> None:

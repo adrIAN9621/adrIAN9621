@@ -337,3 +337,16 @@ def test_person_in_pause_is_located_at_handover_station():
     loc = eng._locatie(eng.db.one("SELECT * FROM persons WHERE id=?", [pid]))
     from app.geo import STATIONS
     assert (loc["lat"], loc["lon"]) == STATIONS["CT"][1:]
+
+
+def test_mechanic_login_by_marca_or_name():
+    from app.integrations.base import Person
+    app = create_app(Config(), db_path=":memory:", clock=ManualClock(T0), run_engine=False)
+    with TestClient(app) as c:
+        eng = app.state.engine
+        eng.db.insert("persons", id="HOGEA MIHAI-CLAUDIU", name="Hogea Mihai-Claudiu", role="mecanic", phone="",
+                      home_city="", lat=45.1, lon=25.7, pin="1234", marca="A1234", status="disponibil")
+        for ident in ("A1234", "a1234", "Hogea Mihai - Claudiu", "HOGEA MIHAI-CLAUDIU", "hogea mihai-claudiu"):
+            r = c.post("/api/login", json={"id": ident, "pin": "1234"})
+            assert r.status_code == 200 and r.json()["user"] == "HOGEA MIHAI-CLAUDIU", ident
+        assert c.post("/api/login", json={"id": "A1234", "pin": "0000"}).status_code == 401

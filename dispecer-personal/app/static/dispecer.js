@@ -164,7 +164,7 @@ function renderPeople() {
   const q = $("#p-search").value.toLowerCase(), role = $("#p-role").value, st = $("#p-status").value;
   $("#people").innerHTML = people.filter(p =>
     (!q || (p.name + p.home_city + p.id).toLowerCase().includes(q)) && (!role || p.role === role) && (!st || p.status === st)
-  ).map(p => `<tr><td>${esc(p.id)}</td><td>${esc(p.name)}${p.online ? ' <span class="badge b-verde">în aplicație</span>' : ""}</td>
+  ).map(p => `<tr><td>${esc(p.marca || p.id)}</td><td>${esc(p.name)}${p.online ? ' <span class="badge b-verde">în aplicație</span>' : ""}</td>
     <td>${esc(p.role)}</td><td>${esc(p.home_city)}</td><td>${esc(p.phone)}</td>
     <td>${badge(p.status)}${p.status_until ? `<div class="small muted">până la ${dhm(p.status_until)}</div>` : ""}</td></tr>`).join("");
 }

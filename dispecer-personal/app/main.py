@@ -120,7 +120,12 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
     @app.post("/api/login")
     def login(body: Login):
         if body.id:
-            p = db.one("SELECT * FROM persons WHERE id = ?", [body.id.strip().upper()])
+            from .comenzi_xlsx import id_persoana
+            text = body.id.strip()
+            # ID-ul, numărul matricol sau numele (cu/fără diacritice, oricum scris)
+            p = (db.one("SELECT * FROM persons WHERE id = ?", [text.upper()])
+                 or db.one("SELECT * FROM persons WHERE id = ?", [id_persoana(text)])
+                 or (db.one("SELECT * FROM persons WHERE UPPER(marca) = ?", [text.upper()]) if text else None))
             if not p or not secrets.compare_digest(str(p["pin"]), body.pin):
                 raise HTTPException(401, "ID sau PIN greșit.")
             user = p["id"]
@@ -211,7 +216,7 @@ def create_app(cfg: Optional[Config] = None, db_path: Optional[str] = None, cloc
 
     @app.get("/api/personal")
     def lista_personal(_: str = Depends(dispecer)):
-        rows = db.q("SELECT id, name, role, phone, home_city, lat, lon, status, status_until, pauza_de_la "
+        rows = db.q("SELECT id, name, role, phone, home_city, lat, lon, status, status_until, pauza_de_la, marca "
                     "FROM persons ORDER BY role, name")
         for r in rows:
             r["online"] = time.time() - engine.online.get(r["id"], 0) < 30

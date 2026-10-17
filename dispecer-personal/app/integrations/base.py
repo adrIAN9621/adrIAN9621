@@ -54,6 +54,7 @@ class Person:
     lon: float
     pin: str = "1234"
     disponibil: bool = True       # False = în concediu
+    marca: str = ""               # nr. matricol – folosit și la logarea în aplicația mecanicului
 
 
 @dataclass
