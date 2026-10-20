@@ -1565,8 +1565,7 @@
     { id: "organize", label: "Organizează / Împarte pagini", group: "editeaza", icon: "pages" },
     { id: "compress", label: "Comprimă", group: "editeaza", icon: "compress" },
     { id: "extract", label: "Extrage text", group: "editeaza", icon: "extract" },
-    { id: "fluxuri", label: "Fluxuri de semnare", group: "semnare", icon: "flow", screen: "fluxuri" },
-    { id: "setari", label: "Setări", group: null, icon: "gear", screen: "setari" },
+    // „Fluxuri de semnare" și „Setări" sunt ascunse din bară (dezactivate la cerere).
   ];
 
   let activeTab = "all";
@@ -1585,7 +1584,7 @@
     $$(".tool-item", $("#toolrail")).forEach((it) => {
       const g = it.dataset.group;
       const q = ($("#tool-search").value || "").trim().toLowerCase();
-      const tabOk = activeTab === "all" || activeTab === "citeste" || g === activeTab || it.dataset.tool === "setari";
+      const tabOk = activeTab === "all" || activeTab === "citeste" || g === activeTab;
       const searchOk = !q || it.textContent.toLowerCase().includes(q);
       it.hidden = !(tabOk && searchOk);
     });
