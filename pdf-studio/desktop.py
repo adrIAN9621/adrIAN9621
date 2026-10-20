@@ -162,6 +162,15 @@ def _open_app_window(url: str):
         _log("Nu am găsit Edge/Chrome pentru modul aplicație.")
         return False
     profile = os.path.join(_data_dir(), "win-%d" % os.getpid())
+    _seed_profile(profile)
+    # Oprim pop-up-urile Edge/Chrome care nu au ce căuta într-o aplicație:
+    # bara de sincronizare a contului de lucru, oferta de autentificare și
+    # bula „Traduceți pagina?". (Parametrii necunoscuți sunt ignorați.)
+    disable = ",".join([
+        "Translate", "TranslateUI",
+        "msImplicitSignin", "msEdgeIdentityFre", "msEdgeWelcomePage",
+        "ShowSyncPromo", "SyncPromoAfterSignin", "msSync",
+    ])
     args = [
         browser,
         f"--app={url}",
@@ -169,6 +178,9 @@ def _open_app_window(url: str):
         "--start-maximized",
         "--no-first-run",
         "--no-default-browser-check",
+        "--disable-sync",
+        "--disable-translate",
+        f"--disable-features={disable}",
     ]
     try:
         _log(f"Deschid fereastra cu: {browser}")
@@ -177,6 +189,27 @@ def _open_app_window(url: str):
     except Exception:
         _log("EROARE la deschiderea ferestrei:\n" + traceback.format_exc())
         return False
+
+
+def _seed_profile(profile: str) -> None:
+    """Presetează profilul browserului ca să nu apară pop-up-uri: dezactivează
+    autentificarea/sincronizarea și traducerea automată încă de la prima pornire."""
+    import json
+
+    try:
+        default_dir = os.path.join(profile, "Default")
+        os.makedirs(default_dir, exist_ok=True)
+        prefs = {
+            "translate": {"enabled": False},
+            "translate_blocked_languages": ["ro", "en"],
+            "signin": {"allowed": False, "allowed_on_next_startup": False},
+            "browser": {"has_seen_welcome_page": True},
+            "sync": {"requested": False},
+        }
+        with open(os.path.join(default_dir, "Preferences"), "w", encoding="utf-8") as f:
+            json.dump(prefs, f)
+    except Exception:
+        _log("Nu am putut preseta profilul (pop-up-uri):\n" + traceback.format_exc())
 
 
 def _keep_alive() -> None:

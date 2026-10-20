@@ -218,6 +218,10 @@ async def sign(request: Request):
 @app.post("/api/validate")
 async def validate(file: UploadFile = File(...), roots: list[UploadFile] = File(default=[])):
     extra = [await r.read() for r in roots if r.filename]
+    # Rădăcinile adăugate manual (ex. CA-ul STS/certSIGN) rămân permanente:
+    # devin „de încredere" pentru toate documentele viitoare, fără a le re-adăuga.
+    if extra:
+        signing.persist_trust_anchors(extra)
     return signing.validate_pdf(await _read(file), extra or None)
 
 

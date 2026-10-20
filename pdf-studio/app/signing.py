@@ -19,6 +19,7 @@ import concurrent.futures
 import datetime as _dt
 import functools
 import glob
+import hashlib
 import logging
 import os
 import re
@@ -263,6 +264,48 @@ def _trust_dirs() -> list[str]:
     base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
     dirs.append(os.path.join(base, "PDF-Studio", "trust"))
     return dirs
+
+
+def _user_trust_dir() -> str:
+    """Dosarul scriibil cu ancore de încredere per utilizator."""
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return os.path.join(base, "PDF-Studio", "trust")
+
+
+def persist_trust_anchors(blobs: list[bytes]) -> int:
+    """Salvează permanent certificatele CA primite (ex. rădăcina STS trasă în
+    fereastra de validare), ca să rămână „de încredere" pentru toate documentele,
+    mereu. Întoarce câte certificate noi au fost salvate. Nu ridică excepții."""
+    if not blobs:
+        return 0
+    d = _user_trust_dir()
+    saved = 0
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception as e:
+        log.debug("Nu pot crea dosarul de încredere %s: %s", d, e)
+        return 0
+    for blob in blobs:
+        try:
+            certs = _load_cert_bytes(blob)
+        except Exception:
+            continue
+        for cert in certs:
+            try:
+                der = cert.dump()
+                name = hashlib.sha256(der).hexdigest()[:16] + ".cer"
+                path = os.path.join(d, name)
+                if not os.path.exists(path):
+                    with open(path, "wb") as f:
+                        f.write(der)
+                    saved += 1
+            except Exception as e:
+                log.debug("Nu pot salva ancora: %s", e)
+    if saved:
+        # ancorele noi devin active imediat
+        _default_trust_roots.cache_clear()
+        _default_intermediates.cache_clear()
+    return saved
 
 
 def _folder_ca_ders() -> list[bytes]:
@@ -960,8 +1003,10 @@ async def _do_sign(
 # Validare
 # ---------------------------------------------------------------------------
 
-VALIDATION_ALLOW_FETCHING = False
-"""Dacă ``True``, se descarcă CRL/OCSP și certificate intermediare (AIA)."""
+VALIDATION_ALLOW_FETCHING = True
+"""Dacă ``True``, se descarcă automat certificatele CA intermediare lipsă (prin
+AIA) când calculatorul are internet – așa se construiește lanțul pentru STS /
+certSIGN fără configurare. Offline, pur și simplu nu găsește nimic (fără eroare)."""
 
 
 def _build_vc(extra_trust_roots: list[bytes] | None) -> tuple[ValidationContext, list[str]]:
@@ -1149,8 +1194,9 @@ def _summary_ro(r: dict, status) -> str:
         parts.append(
             "Certificat neîncrezut pe acest calculator (rădăcina CA nu e "
             "instalată). Semnătura e validă; pentru a apărea de încredere, "
-            "instalează driverul de token / lanțul STS, sau pune rădăcina în "
-            "dosarul trust_anchors"
+            "trage o dată certificatul rădăcină al furnizorului (STS / certSIGN) "
+            "în zona de certificate suplimentare de mai jos — rămâne salvat "
+            "permanent pentru toate documentele"
         )
     if r["timestamp"]:
         parts.append("Marcă temporală prezentă")
