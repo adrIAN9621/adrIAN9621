@@ -568,7 +568,12 @@ _FONT_CANDIDATES = [
 @functools.lru_cache(maxsize=1)
 def _find_font() -> str | None:
     here = os.path.dirname(os.path.abspath(__file__))
-    local = glob.glob(os.path.join(here, "static", "fonts", "*.ttf"))
+    fonts_dir = os.path.join(here, "static", "fonts")
+    # Fontul livrat cu aplicația (diacritice românești garantate, orice sistem).
+    preferred = os.path.join(fonts_dir, "DejaVuSans.ttf")
+    local = ([preferred] if os.path.isfile(preferred) else []) + sorted(
+        glob.glob(os.path.join(fonts_dir, "*.ttf"))
+    )
     for p in local + _FONT_CANDIDATES:
         if os.path.isfile(p):
             return p
@@ -1159,7 +1164,16 @@ async def _async_validate_pdf(pdf: bytes, extra_trust_roots) -> list[dict]:
             diff = status.diff_result
             if diff is not None and not hasattr(diff, "modification_level"):
                 r["errors"].append(f"Modificare suspectă după semnare: {diff}")
-            if status.trust_problem_indic is not None and not status.trusted:
+            # Cazul normal „semnătură validă, dar rădăcina CA nu e încă adăugată"
+            # e deja explicat prietenos în rezumat; nu mai afișăm eticheta tehnică
+            # (ex. NO_CERTIFICATE_CHAIN_FOUND / CHAIN_CONSTRAINTS_FAILURE) la Probleme,
+            # ca să nu alarmăm degeaba. O arătăm doar dacă integritatea/validitatea
+            # criptografică e afectată (problemă reală, nu doar lipsa ancorei).
+            if (
+                status.trust_problem_indic is not None
+                and not status.trusted
+                and not (r["intact"] and r["valid"])
+            ):
                 r["errors"].append(f"Problemă de încredere: {status.trust_problem_indic.name}")
 
         r["summary"] = _summary_ro(r, status)

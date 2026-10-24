@@ -37,7 +37,7 @@ jobs:
         working-directory: pdf-studio
         run: |
           choco install innosetup --no-progress -y
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" installer\pdfstudio.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\pdfstudio.iss
         shell: pwsh
 
       - name: Verificare rapidă (pornește și răspunde)
