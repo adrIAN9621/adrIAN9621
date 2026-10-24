@@ -303,9 +303,11 @@ def list_windows_certs() -> list[dict]:
     Întoarce dicționare cu: ``thumbprint, subject, issuer, not_before, not_after,
     serial, email, has_key, is_qualified_guess``. Certificatele de semnătură
     (nonRepudiation) sunt puse primele. Nu se achiziționează nicio cheie, deci
-    nu apare niciun prompt de PIN.
+    nu apare niciun prompt de PIN. Pe sisteme non-Windows întoarce listă goală
+    (fără excepție), consecvent cu ``list_system_ca_ders``.
     """
-    _require_windows()
+    if not available():
+        return []
     ctypes, crypt32, _advapi32, _ncrypt = _win_libs()
     CERT_CONTEXT, _ = _cert_context_class(ctypes)
     _setup_prototypes(ctypes, crypt32, _advapi32, _ncrypt, CERT_CONTEXT)

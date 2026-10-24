@@ -21,6 +21,24 @@ def pdf_to_docx(pdf: bytes) -> bytes:
     """Convertește un PDF în DOCX folosind pdf2docx."""
     if not pdf:
         raise ValueError("Fișierul PDF este gol.")
+
+    # PDF scanat (doar imagini, fără text) -> pdf2docx ar produce un DOCX gol,
+    # în tăcere. Avertizăm clar utilizatorul în loc să-i dăm un fișier gol.
+    try:
+        import fitz  # PyMuPDF
+
+        with fitz.open(stream=pdf, filetype="pdf") as doc:
+            if doc.page_count and not any(page.get_text().strip() for page in doc):
+                raise ValueError(
+                    "PDF-ul pare scanat (conține doar imagini, fără text selectabil). "
+                    "Conversia în Word ar produce un document gol. Recunoașterea "
+                    "textului din imagini (OCR) nu este încă disponibilă."
+                )
+    except ValueError:
+        raise
+    except Exception:
+        pass  # dacă nu putem inspecta, continuăm normal cu conversia
+
     try:
         from pdf2docx import Converter
     except ImportError as exc:  # pragma: no cover

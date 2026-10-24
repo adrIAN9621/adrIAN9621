@@ -16,6 +16,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -60,13 +61,17 @@ DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 # ---------------------------------------------------------------- conversie
 @app.post("/api/convert/pdf-to-word")
 async def pdf_to_word(file: UploadFile = File(...)):
-    data = convert.pdf_to_docx(await _read(file))
+    # Conversie blocantă (subprocess/CPU) -> pe threadpool, ca să nu blocheze serverul.
+    raw = await _read(file)
+    data = await run_in_threadpool(convert.pdf_to_docx, raw)
     return _download(data, _stem(file.filename) + ".docx", DOCX)
 
 
 @app.post("/api/convert/to-pdf")
 async def to_pdf(file: UploadFile = File(...)):
-    data = convert.office_to_pdf(await _read(file), file.filename or "document.docx")
+    raw = await _read(file)
+    fname = file.filename or "document.docx"
+    data = await run_in_threadpool(convert.office_to_pdf, raw, fname)
     return _download(data, _stem(file.filename) + ".pdf", PDF)
 
 

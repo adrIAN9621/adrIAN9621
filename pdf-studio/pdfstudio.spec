@@ -23,13 +23,20 @@ for _p in ("fastapi", "starlette", "uvicorn", "anyio", "multipart", "websockets"
 
 # Pachetele „grele” se adună complet, ca să nu lipsească module la rulare.
 for pkg in ("fitz", "pymupdf", "pyhanko", "pyhanko_certvalidator", "asn1crypto",
-            "oscrypto", "certvalidator", "pdf2docx", "docx", "cryptography", "PIL",
+            "oscrypto", "pdf2docx", "docx", "cryptography", "PIL", "aiohttp",
             ):
     try:
         d, b, h = collect_all(pkg)
         datas += d; binaries += b; hiddenimports += h
     except Exception:
         pass
+
+# docx2pdf -> Word prin COM (pywin32). Doar pe Windows; necesită Word instalat.
+import sys as _sys
+if _sys.platform.startswith("win"):
+    for _m in ("win32com", "win32com.client", "pythoncom", "pywintypes", "docx2pdf"):
+        if _m not in hiddenimports:
+            hiddenimports.append(_m)
 
 block_cipher = None
 
