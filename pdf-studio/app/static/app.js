@@ -981,7 +981,10 @@
       const bg = sampleBg(sp.bbox);
       Object.assign(div.style, {
         left: (x0 * sx) + "px", top: (y0 * sy) + "px",
-        minWidth: w + "px", height: hh + "px", lineHeight: hh + "px",
+        minWidth: w + "px",
+        // nu lăsăm caseta să iasă din pagină (în gutter) când textul crește
+        maxWidth: Math.max(w, (PW - x0) * sx) + "px",
+        height: hh + "px", lineHeight: hh + "px",
         fontSize: (sp.size * sy) + "px", color: sp.color,
         fontWeight: sp.bold ? "700" : "400", fontStyle: sp.italic ? "italic" : "normal",
         background: bg || "#fff",
