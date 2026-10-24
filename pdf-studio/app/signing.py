@@ -1048,6 +1048,28 @@ _MODLEVEL_RO = {
 }
 
 
+@functools.lru_cache(maxsize=1)
+def _lenient_diff_policy():
+    """Politică de analiză a diferențelor mai permisivă, ca Adobe.
+
+    Implicit, pyHanko marchează ca „modificare suspectă" eliberarea de obiecte
+    (object freeing) care apare NORMAL la semnarea secvențială (mai mulți
+    semnatari, fiecare adaugă o revizie). Dezactivăm acel reproș ca fluxurile
+    cu mai mulți semnatari să apară „curate", exact ca în Adobe Acrobat.
+    Restul verificărilor de integritate rămân active. La orice incompatibilitate
+    de versiune, revenim la politica implicită (None)."""
+    try:
+        from pyhanko.sign.diff_analysis import DEFAULT_DIFF_POLICY, StandardDiffPolicy
+
+        d = DEFAULT_DIFF_POLICY
+        return StandardDiffPolicy(
+            d.global_rules, d.form_rule, reject_object_freeing=False
+        )
+    except Exception as e:
+        log.debug("Nu pot construi politica de diff permisivă: %s", e)
+        return None
+
+
 def validate_pdf(pdf: bytes, extra_trust_roots: list[bytes] | None = None) -> list[dict]:
     """Validează toate semnăturile din PDF. Nu aruncă pentru certificate neîncrezute."""
     return _run_async(_async_validate_pdf(pdf, extra_trust_roots))
@@ -1130,6 +1152,7 @@ async def _async_validate_pdf(pdf: bytes, extra_trust_roots) -> list[dict]:
                 signer_validation_context=vc,
                 ts_validation_context=vc,
                 key_usage_settings=kuc,
+                diff_policy=_lenient_diff_policy(),
             )
         except Exception as e:
             log.debug("Validare eșuată pt %s", fname, exc_info=True)
@@ -1162,7 +1185,16 @@ async def _async_validate_pdf(pdf: bytes, extra_trust_roots) -> list[dict]:
             if status.revoked:
                 r["errors"].append("Certificatul semnatarului a fost revocat.")
             diff = status.diff_result
-            if diff is not None and not hasattr(diff, "modification_level"):
+            # Detaliile tehnice de diferențe (ex. „unexplained xrefs", structură
+            # de accesibilitate rescrisă de portalul de semnare) le arătăm DOAR
+            # când integritatea e afectată. La o semnătură intactă+validă,
+            # conținutul semnat e neschimbat, iar reviziile ulterioare sunt normale
+            # (flux cu mai mulți semnatari) — ca în Adobe, nu le raportăm ca problemă.
+            if (
+                diff is not None
+                and not hasattr(diff, "modification_level")
+                and not (r["intact"] and r["valid"])
+            ):
                 r["errors"].append(f"Modificare suspectă după semnare: {diff}")
             # Cazul normal „semnătură validă, dar rădăcina CA nu e încă adăugată"
             # e deja explicat prietenos în rezumat; nu mai afișăm eticheta tehnică
@@ -1184,21 +1216,31 @@ async def _async_validate_pdf(pdf: bytes, extra_trust_roots) -> list[dict]:
 def _summary_ro(r: dict, status) -> str:
     parts: list[str] = []
     ml = r.get("modification_level")
+    cov = r.get("coverage")
     if not r["intact"]:
+        # integritatea e ruptă -> conținutul chiar semnat a fost schimbat (real)
         parts.append(
             "Document modificat după semnare (conținutul semnat nu mai corespunde)"
         )
     elif not r["valid"]:
         parts.append("Semnătură invalidă criptografic")
-    elif ml == "OTHER" or r["coverage"] in ("UNCLEAR", "CONTIGUOUS_BLOCK_FROM_START") and ml != "NONE":
-        parts.append("Semnătură validă, dar documentul a fost modificat după semnare")
+    elif cov == "ENTIRE_FILE" and ml in ("NONE", ""):
+        parts.append("Semnătură validă, document nemodificat după semnare")
     elif ml in ("FORM_FILLING", "ANNOTATIONS", "LTA_UPDATES"):
+        # modificări recunoscute ca benigne (completări formulare, alte semnături,
+        # marcă temporală) -> ca în Adobe, semnătură validă fără avertisment.
         parts.append(
-            "Semnătură validă; după semnare au fost adăugate doar "
+            "Semnătură validă; ulterior s-au adăugat doar "
             + _MODLEVEL_RO.get(ml, ml.lower())
         )
     else:
-        parts.append("Semnătură validă, document nemodificat după semnare")
+        # ml == OTHER sau acoperire neclară: există modificări NErecunoscute după
+        # această semnătură. Integritatea semnăturii în sine e bună (intact=True),
+        # dar — exact ca Adobe — semnalăm că documentul a fost modificat ulterior.
+        # NU ascundem acest lucru: altfel o modificare frauduloasă ar trece neobservată.
+        parts.append(
+            "Semnătură validă, dar documentul a fost modificat după aplicarea acestei semnături"
+        )
 
     if status is not None and getattr(status, "revoked", False):
         parts.append("Certificat revocat")
