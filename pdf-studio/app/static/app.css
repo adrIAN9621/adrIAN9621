@@ -39,7 +39,10 @@
   --focus-ring: 0 0 0 3px rgba(14, 154, 194, .35);
   --grad-primary: linear-gradient(135deg, #0b5bb5 0%, #0e9ac2 55%, #19c3e6 100%);
   --fx-opacity: .5;
-  --appbar-h: 54px;
+  --appbar-h: 52px;
+  --cmdbar-h: 42px;
+  --header-h: calc(var(--appbar-h) + var(--cmdbar-h));
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Consolas, "Roboto Mono", monospace;
   color-scheme: light;
 }
 
@@ -68,45 +71,62 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
    LAYOUT – bară aplicație + spațiu de lucru în stil Acrobat
    ================================================================= */
 .appbar {
-  position: sticky; top: 0; z-index: 40; height: var(--appbar-h);
-  display: flex; align-items: center; gap: .75rem; padding: 0 .75rem;
-  background: color-mix(in srgb, var(--side-bg) 92%, transparent);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-  color: var(--side-text); border-bottom: 2px solid var(--accent);
-  box-shadow: 0 2px 14px rgba(0, 0, 0, .3);
+  position: sticky; top: 0; z-index: 41; height: var(--appbar-h);
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: 0 .85rem;
+  background: color-mix(in srgb, var(--side-bg) 94%, transparent);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  color: var(--side-text); border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, .35);
 }
-.appbar-left { display: flex; align-items: center; gap: .5rem; flex: 0 0 auto; }
-.app-brand { display: flex; align-items: center; gap: .55rem; text-decoration: none; color: var(--side-text); }
-.app-logo { height: 30px; width: auto; display: block; filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .4)); }
-.app-name { font-family: var(--display); font-weight: 700; font-size: 1.02rem; letter-spacing: .02em; white-space: nowrap; }
-
-.menutabs { display: flex; align-items: center; gap: .1rem; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.menutabs::-webkit-scrollbar { display: none; }
-.menutab {
-  font: inherit; font-weight: 600; font-size: .9rem; white-space: nowrap;
-  background: none; border: 0; color: color-mix(in srgb, var(--side-text) 72%, transparent);
-  padding: .4rem .7rem; border-radius: 7px; cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-.menutab:hover { color: var(--side-text); background: rgba(255, 255, 255, .06); }
-.menutab.active { color: #fff; border-bottom-color: var(--cyan-2); text-shadow: 0 0 12px color-mix(in srgb, var(--cyan-2) 50%, transparent); }
+.appbar-left { display: flex; align-items: center; gap: .55rem; flex: 1 1 auto; min-width: 0; }
+.app-brand { display: flex; align-items: center; gap: .6rem; text-decoration: none; color: var(--side-text); min-width: 0; }
+.app-logo { height: 30px; width: auto; display: block; filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .4)); flex: none; }
+.app-name { display: flex; flex-direction: column; line-height: 1.05; font-family: var(--display); font-weight: 700; font-size: 1.04rem; letter-spacing: .02em; white-space: nowrap; }
+.app-name .app-sub { font-family: var(--mono); font-weight: 500; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--accent) 75%, var(--side-muted)); }
 
 .appbar-right { display: flex; align-items: center; gap: .55rem; flex: 0 0 auto; }
+.cur-file {
+  font-family: var(--mono); font-size: .78rem; color: var(--side-muted);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: .28rem .6rem; border-radius: 6px; background: rgba(255, 255, 255, .04);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* ---------- a doua bară: comandă (taburi + căutare) ---------- */
+.commandbar {
+  position: sticky; top: var(--appbar-h); z-index: 40; height: var(--cmdbar-h);
+  display: flex; align-items: center; gap: .6rem; padding: 0 .85rem;
+  background: color-mix(in srgb, var(--side-bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  color: var(--side-text);
+  border-bottom: 2px solid transparent;
+  /* „șine" feroviare: două fire de chihlimbar cu traverse */
+  border-image: repeating-linear-gradient(90deg,
+      var(--accent) 0 14px, transparent 14px 22px) 2;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .28);
+}
+.cmd-prompt { font-family: var(--mono); font-weight: 700; font-size: .85rem; color: var(--accent); opacity: .85; flex: none; text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent); }
+.menutabs { display: flex; align-items: center; gap: .15rem; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; height: 100%; }
+.menutabs::-webkit-scrollbar { display: none; }
+.menutab {
+  font-family: var(--mono); font-weight: 600; font-size: .82rem; white-space: nowrap;
+  background: none; border: 0; color: color-mix(in srgb, var(--side-text) 70%, transparent);
+  padding: .32rem .7rem; border-radius: 7px; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: color .15s, background .15s;
+}
+.menutab:hover { color: var(--side-text); background: rgba(255, 255, 255, .06); }
+.menutab.active { color: var(--accent); border-bottom-color: var(--accent); text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent); }
 .tool-search {
-  display: flex; align-items: center; gap: .4rem; padding: .3rem .6rem; border-radius: 999px;
-  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .12); color: var(--side-muted);
+  display: flex; align-items: center; gap: .4rem; padding: .28rem .6rem; border-radius: 999px; flex: none;
+  background: rgba(255, 255, 255, .06); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); color: var(--side-muted);
 }
 .tool-search input {
-  font: inherit; font-size: .88rem; background: none; border: 0; outline: none; color: var(--side-text);
+  font: inherit; font-family: var(--mono); font-size: .82rem; background: none; border: 0; outline: none; color: var(--side-text);
   width: 150px; min-width: 0; padding: 0;
 }
 .tool-search input::placeholder { color: var(--side-muted); }
-.cur-file {
-  font-size: .85rem; color: var(--side-muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; padding: .2rem .5rem; border-radius: 6px; background: rgba(255, 255, 255, .05);
-}
 
-.workspace { display: flex; min-height: calc(100vh - var(--appbar-h)); position: relative; z-index: 1; }
+.workspace { display: flex; min-height: calc(100vh - var(--header-h)); position: relative; z-index: 1; }
 
 /* ---------- bară de instrumente verticală (All tools) ---------- */
 .toolrail {
@@ -116,7 +136,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
   border-right: 1px solid color-mix(in srgb, var(--cyan) 26%, var(--border));
   box-shadow: 1px 0 0 color-mix(in srgb, var(--cyan) 14%, transparent), 10px 0 40px rgba(0, 0, 0, .22);
   padding: .65rem .5rem; display: flex; flex-direction: column; gap: 3px;
-  position: sticky; top: var(--appbar-h); height: calc(100vh - var(--appbar-h)); overflow-y: auto;
+  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); overflow-y: auto;
 }
 .tool-item {
   display: flex; align-items: center; gap: .65rem; width: 100%; text-align: left;
@@ -201,7 +221,7 @@ body.thumbs-hidden .viewer-thumbs { display: none; }
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-left: 1px solid color-mix(in srgb, var(--cyan) 22%, var(--border));
   box-shadow: -10px 0 40px rgba(0, 0, 0, .22);
-  position: sticky; top: var(--appbar-h); height: calc(100vh - var(--appbar-h));
+  position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h));
   display: flex; flex-direction: column;
 }
 .rp-head {
@@ -218,7 +238,7 @@ body.thumbs-hidden .viewer-thumbs { display: none; }
 
 /* ---------- ecrane dedicate (Fluxuri / Setări) ---------- */
 .screen {
-  position: fixed; left: 236px; right: 0; top: var(--appbar-h); bottom: 0; z-index: 20;
+  position: fixed; left: 236px; right: 0; top: var(--header-h); bottom: 0; z-index: 20;
   overflow-y: auto; background: var(--bg);
 }
 body.rail-collapsed .screen { left: 64px; }
@@ -463,27 +483,62 @@ body {
 .fx-bg > span { position: absolute; inset: -25%; display: block; will-change: transform, opacity; }
 .fx-aurora {
   background:
-    radial-gradient(42% 42% at 24% 30%, color-mix(in srgb, var(--cyan-2) 42%, transparent), transparent 62%),
-    radial-gradient(46% 46% at 78% 26%, color-mix(in srgb, var(--rail-2) 46%, transparent), transparent 64%),
-    radial-gradient(40% 40% at 60% 82%, color-mix(in srgb, var(--rail) 40%, transparent), transparent 62%);
-  filter: blur(42px) saturate(118%); opacity: .5; animation: fxAurora 26s ease-in-out infinite alternate;
+    radial-gradient(42% 42% at 24% 28%, color-mix(in srgb, var(--signal) 40%, transparent), transparent 62%),
+    radial-gradient(46% 46% at 80% 22%, color-mix(in srgb, var(--accent) 44%, transparent), transparent 64%),
+    radial-gradient(38% 38% at 62% 82%, color-mix(in srgb, var(--ice) 30%, transparent), transparent 62%);
+  filter: blur(46px) saturate(115%); opacity: .4; animation: fxAurora 26s ease-in-out infinite alternate;
 }
 .fx-grid {
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--cyan) 55%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--cyan) 55%, transparent) 1px, transparent 1px);
-  background-size: 46px 46px; opacity: .08;
-  -webkit-mask: radial-gradient(circle at 70% 18%, #000 0%, transparent 72%); mask: radial-gradient(circle at 70% 18%, #000 0%, transparent 72%);
+    linear-gradient(to right, color-mix(in srgb, var(--ice) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--ice) 55%, transparent) 1px, transparent 1px);
+  background-size: 46px 46px; opacity: .06;
+  -webkit-mask: radial-gradient(circle at 72% 14%, #000 0%, transparent 70%); mask: radial-gradient(circle at 72% 14%, #000 0%, transparent 70%);
   animation: fxGrid 40s linear infinite;
 }
-.fx-scan { background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--cyan-2) 30%, transparent), transparent); height: 180px; inset: auto 0 auto 0; opacity: 0; animation: fxScan 11s linear infinite; }
+/* șine feroviare care fug spre orizont, jos pe ecran */
+.fx-bg .fx-rails {
+  inset: auto 0 -6% 0; height: 48%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 46px, color-mix(in srgb, var(--accent) 55%, transparent) 46px 48px),
+    linear-gradient(90deg, transparent 46%, color-mix(in srgb, var(--accent) 60%, transparent) 49% 51%, transparent 54%);
+  background-size: 92px 100%, 100% 100%;
+  opacity: .05; transform: perspective(420px) rotateX(62deg); transform-origin: bottom center;
+  -webkit-mask: linear-gradient(to top, #000, transparent 85%); mask: linear-gradient(to top, #000, transparent 85%);
+}
+/* locomotivă stilizată, watermark discret */
+.fx-bg .fx-loco {
+  inset: auto -4% 7% auto; width: 520px; height: 260px;
+  background: var(--accent);
+  -webkit-mask: url("/static/brand/loco.svg") right bottom / contain no-repeat;
+  mask: url("/static/brand/loco.svg") right bottom / contain no-repeat;
+  opacity: .05; filter: drop-shadow(0 0 20px color-mix(in srgb, var(--accent) 40%, transparent));
+  animation: fxLoco 30s ease-in-out infinite alternate;
+}
+.fx-bg .fx-scan { background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ice-2) 26%, transparent), transparent); height: 170px; inset: auto 0 auto 0; opacity: 0; animation: fxScan 12s linear infinite; }
 @keyframes fxAurora { 0% { transform: translate3d(-3%, -2%, 0) scale(1.05) rotate(0deg); } 50% { transform: translate3d(3%, 2%, 0) scale(1.12) rotate(4deg); } 100% { transform: translate3d(-2%, 3%, 0) scale(1.06) rotate(-3deg); } }
 @keyframes fxGrid { from { transform: translate3d(0,0,0); } to { transform: translate3d(46px, 46px, 0); } }
-@keyframes fxScan { 0% { transform: translateY(-20vh); opacity: 0; } 12% { opacity: .5; } 88% { opacity: .5; } 100% { transform: translateY(120vh); opacity: 0; } }
+@keyframes fxLoco { from { transform: translateX(3%); } to { transform: translateX(-4%); } }
+@keyframes fxScan { 0% { transform: translateY(-20vh); opacity: 0; } 12% { opacity: .45; } 88% { opacity: .45; } 100% { transform: translateY(120vh); opacity: 0; } }
 
 .app-logo { animation: brandIn .8s cubic-bezier(.22,.61,.36,1) both, brandGlow 5s ease-in-out 1s infinite; will-change: transform, opacity, filter; }
 @keyframes brandIn { from { opacity: 0; transform: translateX(-10px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes brandGlow { 0%, 100% { filter: drop-shadow(0 1px 6px rgba(0,0,0,.4)); } 50% { filter: drop-shadow(0 1px 6px rgba(0,0,0,.4)) drop-shadow(0 0 9px rgba(54,209,220,.45)); } }
+@keyframes brandGlow { 0%, 100% { filter: drop-shadow(0 1px 6px rgba(0,0,0,.4)); } 50% { filter: drop-shadow(0 1px 6px rgba(0,0,0,.4)) drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 55%, transparent)); } }
+
+/* ---------- locomotivă în ecranul gol (splash) ---------- */
+.empty-loco {
+  display: block; width: min(300px, 70%); height: auto; margin: 0 auto 1.1rem;
+  color: var(--accent);
+  filter: drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 32%, transparent));
+  animation: brandIn .9s cubic-bezier(.22,.61,.36,1) both, locoGlow 4.5s ease-in-out 1s infinite;
+}
+@keyframes locoGlow { 0%,100% { filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 22%, transparent)); } 50% { filter: drop-shadow(0 0 28px color-mix(in srgb, var(--accent) 48%, transparent)); } }
+.empty-inner h1 { font-size: 1.9rem; }
+
+/* ---------- accente „de cod" (monospace) ---------- */
+.vt-tool, .badge, .kv dt, .step-num { font-family: var(--mono); }
+.vt-tool { letter-spacing: .03em; }
+.empty-inner .lead { font-family: var(--mono); font-size: .9rem; letter-spacing: .01em; }
 
 /* =================================================================
    RESPONSIVE
@@ -499,18 +554,19 @@ body {
   body.rail-collapsed .screen { left: 212px; }
 }
 @media (max-width: 900px) {
+  .app-name .app-sub { display: none; }
   .cur-file { display: none; }
-  .tool-search input { width: 110px; }
+  .tool-search input { width: 96px; }
   .rightpanel {
-    position: fixed; top: var(--appbar-h); right: 0; bottom: 0; width: min(400px, 92vw); flex-basis: auto; z-index: 30;
+    position: fixed; top: var(--header-h); right: 0; bottom: 0; width: min(400px, 92vw); flex-basis: auto; z-index: 30;
   }
   .viewer-thumbs { flex-basis: 104px; width: 104px; }
 }
 @media (max-width: 640px) {
-  .menutabs { gap: 0; }
-  .menutab { font-size: .82rem; padding: .4rem .5rem; }
-  .tool-search { display: none; }
-  .toolrail { position: fixed; top: var(--appbar-h); left: 0; bottom: 0; z-index: 35; transform: translateX(-105%); transition: transform .2s; flex-basis: 212px; width: 212px; }
+  .menutab { font-size: .78rem; padding: .3rem .5rem; }
+  .cmd-prompt { display: none; }
+  .tool-search input { width: 70px; }
+  .toolrail { position: fixed; top: var(--header-h); left: 0; bottom: 0; z-index: 35; transform: translateX(-105%); transition: transform .2s; flex-basis: 212px; width: 212px; }
   .ti-label { display: inline; }
   .tool-item { justify-content: flex-start; padding: .55rem .6rem; border-radius: 0 9px 9px 0; }
   body.rail-collapsed .toolrail { transform: none; }
@@ -520,53 +576,69 @@ body {
   .app-name { display: none; }
   .screen, body.rail-collapsed .screen { left: 0; }
 }
+@media (max-width: 420px) {
+  .tool-search { display: none; }
+}
 
 /* ---------- reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .fx-aurora, .fx-grid, .fx-scan, .card::before, .btn.primary:hover:not(:disabled)::after, .drop.over, .app-logo { animation: none !important; }
+  .fx-aurora, .fx-grid, .fx-scan, .fx-loco, .card::before, .btn.primary:hover:not(:disabled)::after, .drop.over, .app-logo, .empty-loco { animation: none !important; }
   .card, .btn, .tool-item, .drop { transition: none !important; }
 }
 
 /* =================================================================
-   FORȚĂM tema futuristă întunecată MEREU (independent de Windows)
+   TEMĂ „CHIHLIMBAR FEROVIAR" — grafit + chihlimbar, SF/coding (mereu)
+   Accent principal = chihlimbar (semnalizare feroviară).
+   Detaliu rece (cyan/ice) folosit discret în fundal.
    ================================================================= */
 :root {
-  --bg: #060c16;
-  --surface: #0e1a2b;
-  --surface-2: #132436;
-  --border: #22384f;
-  --text: #e6edf5;
-  --muted: #9aabbf;
-  --primary: #2fa6e8;
-  --primary-hover: #57bdf4;
-  --primary-soft: #0e2b45;
-  --on-primary: #06121f;
-  --accent: #19c3e6;
-  --accent-2: #36d1dc;
-  --cyan: #19c3e6;
-  --cyan-2: #36d1dc;
-  --ok: #5fd08a; --ok-soft: #12291c;
-  --warn: #f5b84a; --warn-soft: #2e2410;
-  --err: #f2786d; --err-soft: #341a18;
-  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 10px 30px rgba(0,0,0,.45);
-  --stage-bg: #0a1420;
-  --canvas-bg: #0d1a29;
-  --side-bg: #060f1c;
-  --side-text: #e6edf5;
-  --side-muted: #8295ab;
-  --ink: #eaf3ff;
-  --glass-bg: rgba(16,30,48,.62);
-  --glass-brd: rgba(90,170,230,.22);
-  --focus-ring: 0 0 0 3px rgba(54,209,220,.45);
-  --grad-primary: linear-gradient(135deg, #0b5bb5 0%, #19c3e6 55%, #36d1dc 100%);
+  --bg: #070a0f;
+  --surface: #121a24;
+  --surface-2: #1a2430;
+  --border: #2a3442;
+  --text: #eef2f7;
+  --muted: #94a2b2;
+  /* chihlimbar = „primary" */
+  --primary: #ffb020;
+  --primary-hover: #ffc24d;
+  --primary-soft: #2c2109;
+  --on-primary: #1a1206;
+  --accent: #ffb020;
+  --accent-2: #ff8a3d;
+  /* multe reguli folosesc --cyan/--cyan-2 pentru stări active/glow:
+     le repointăm pe chihlimbar ca accentul să domine */
+  --cyan: #ffb020;
+  --cyan-2: #ffcf5a;
+  /* detaliu rece, discret (grilă/scan fundal) */
+  --ice: #2fd0e6;
+  --ice-2: #5bd6ef;
+  --signal: #ff8a3d;
+  --rail: #76838f;      /* oțel */
+  --rail-2: #ffb020;    /* chihlimbar pe linia superioară a cardurilor */
+  --ok: #57d08a; --ok-soft: #10281b;
+  --warn: #ffc24d; --warn-soft: #2e2510;
+  --err: #ff6b5e; --err-soft: #331a17;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 34px rgba(0,0,0,.5);
+  --stage-bg: #0a0f16;
+  --canvas-bg: #0c121b;
+  --side-bg: #080b11;
+  --side-text: #eef2f7;
+  --side-muted: #8494a6;
+  --ink: #f3f7fc;
+  --glass-bg: rgba(18,26,37,.66);
+  --glass-brd: rgba(255,176,32,.22);
+  --focus-ring: 0 0 0 3px rgba(255,176,32,.38);
+  --grad-primary: linear-gradient(135deg, #ff8a3d 0%, #ffb020 55%, #ffd166 100%);
   --fx-opacity: 1;
   color-scheme: dark;
 }
 .fx-aurora { opacity: 1 !important; }
-.fx-grid { opacity: .08 !important; }
+.fx-grid { opacity: .07 !important; }
 body { background:
-    radial-gradient(1200px 700px at 78% -8%, color-mix(in srgb, var(--rail-2) 16%, transparent), transparent 60%),
-    radial-gradient(1000px 650px at -6% 108%, color-mix(in srgb, var(--cyan) 14%, transparent), transparent 60%),
+    radial-gradient(1200px 720px at 80% -10%, color-mix(in srgb, var(--signal) 14%, transparent), transparent 60%),
+    radial-gradient(1000px 650px at -6% 110%, color-mix(in srgb, var(--ice) 10%, transparent), transparent 60%),
     var(--bg); color: var(--text); }
 h1, h2, h3, .app-name { font-family: var(--display); letter-spacing: .01em; }
-.empty-inner h1 { text-shadow: 0 0 22px color-mix(in srgb, var(--cyan) 18%, transparent); }
+.empty-inner h1 { text-shadow: 0 0 26px color-mix(in srgb, var(--signal) 22%, transparent); }
+/* cuvânt-cheie evidențiat (aspect de cod) */
+.h-kw { color: var(--accent); }
