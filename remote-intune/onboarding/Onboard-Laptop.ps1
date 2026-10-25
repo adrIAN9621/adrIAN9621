@@ -69,6 +69,36 @@ else {
     Read-Host "Dupa ce ati terminat alaturarea la Entra in fereastra Setari, apasati Enter aici"
 }
 
+# ------------------------------------------------------------------ 2b. CONTURI LOCALE (hardening NIS2)
+# Redenumeste contul Administrator integrat (SID ...-500) si dezactiveaza Guest
+# (SID ...-501). Tintim dupa SID ca sa mearga si pe Windows in alta limba.
+try {
+    if ($RenameAdminTo) {
+        $admin = Get-LocalUser | Where-Object { $_.SID.Value.EndsWith("-500") } | Select-Object -First 1
+        if ($admin) {
+            if ($admin.Name -ne $RenameAdminTo) {
+                Rename-LocalUser -Name $admin.Name -NewName $RenameAdminTo
+                Log "Contul Administrator redenumit in '$RenameAdminTo'."
+            }
+            else { Log "Contul administrator e deja '$RenameAdminTo'." }
+        }
+        else { Warn "Nu am gasit contul Administrator local (-500)." }
+    }
+}
+catch { Warn "Redenumire Administrator: $($_.Exception.Message)" }
+
+try {
+    if ($DisableGuest) {
+        $guest = Get-LocalUser | Where-Object { $_.SID.Value.EndsWith("-501") } | Select-Object -First 1
+        if ($guest) {
+            if ($guest.Enabled) { Disable-LocalUser -Name $guest.Name; Log "Contul Guest / Oaspete dezactivat." }
+            else { Log "Contul Guest / Oaspete e deja dezactivat." }
+        }
+        else { Log "Nu exista cont Guest (ok)." }
+    }
+}
+catch { Warn "Dezactivare Guest: $($_.Exception.Message)" }
+
 # ------------------------------------------------------------------ 3. SECURE BOOT
 Log "Activez Secure Boot (BIOS Lenovo)..."
 try {

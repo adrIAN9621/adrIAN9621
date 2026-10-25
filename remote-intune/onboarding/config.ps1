@@ -23,3 +23,7 @@ $BitLockerKeyFolder = ""
 # Prefixul numelui calculatorului. Numele final = PREFIX + NUME + initiala prenume.
 # Ex.: Vlasin Adrian -> CF0LPVLASINA
 $NamePrefix = "CF0LP"
+
+# Securizare conturi locale (recomandat NIS2):
+$RenameAdminTo = "supervizor"   # redenumeste contul Administrator (gol "" = nu schimba)
+$DisableGuest  = $true          # dezactiveaza contul Guest / Oaspete

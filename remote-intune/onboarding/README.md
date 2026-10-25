@@ -20,6 +20,9 @@ redenumire → alăturare la „work" → Secure Boot → criptare date (BitLock
    - `Entra` → deschide „Access work or school"; **alăturarea cu cont+parolă NU se poate
      face silențios** (limitare Microsoft), deci completezi tu în fereastra Setări cu
      contul afișat (parola e în `config.ps1`), apoi apeși Enter ca să continue.
+2b. **Securizare conturi locale (NIS2):** redenumește contul **Administrator** în
+    `supervizor` (din `$RenameAdminTo`) și **dezactivează contul Guest/Oaspete**
+    (țintite după SID `-500` / `-501`, merge în orice limbă).
 3. **Secure Boot** – activat din Windows prin WMI-ul BIOS Lenovo (se aplică la repornire).
 4. **Criptare date (BitLocker)** pe `C:` (XTS-AES-256), cu **cheie de recuperare**:
    - salvată în Entra/AD (dacă e alăturat) **și** într-un fișier `BitLocker-<nume>.txt`
