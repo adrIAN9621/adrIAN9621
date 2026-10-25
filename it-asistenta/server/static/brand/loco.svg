@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- pantograf -->
+  <path d="M96 14h28M104 14l6 16M116 14l-6 16M110 30v8"/>
+  <!-- corp locomotiva (profil, cu frontul teșit aerodinamic) -->
+  <path d="M26 46h150l24 18v22H18V62c0-6 3-12 8-16z"/>
+  <!-- linie caroserie -->
+  <path d="M18 72h182"/>
+  <!-- cabina / geamuri -->
+  <path d="M150 50h20l16 12h-36z"/>
+  <rect x="42" y="52" width="22" height="12" rx="2"/>
+  <rect x="78" y="52" width="22" height="12" rx="2"/>
+  <rect x="114" y="52" width="22" height="12" rx="2"/>
+  <!-- far -->
+  <circle cx="190" cy="78" r="3"/>
+  <!-- boghiuri / roti -->
+  <circle cx="54" cy="92" r="11"/>
+  <circle cx="86" cy="92" r="11"/>
+  <circle cx="156" cy="92" r="11"/>
+  <circle cx="188" cy="92" r="11"/>
+  <!-- sina -->
+  <path d="M4 108h232" stroke-width="3"/>
+  <path d="M20 116l10-8M60 116l10-8M100 116l10-8M140 116l10-8M180 116l10-8M220 116l10-8" stroke-width="2"/>
+</svg>

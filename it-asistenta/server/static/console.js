@@ -20,6 +20,7 @@
     connect_request: "Cerere conectare", accepted: "Acceptat", rejected: "Refuzat",
     timeout: "Fără răspuns", session_end: "Sesiune încheiată", wrong_code: "Cod greșit",
     agent_registered: "Calculator nou", agent_rejected: "Calculator respins",
+    device_reveal: "Parolă dezvăluită",
   };
   const BAD_EVENTS = new Set(["login_failed", "rejected", "timeout", "wrong_code", "agent_rejected"]);
   const GOOD_EVENTS = new Set(["accepted", "login", "agent_registered"]);
@@ -28,6 +29,8 @@
   let agents = [];
   let agentsTimer = null;
   let currentTab = "agents";
+  let devices = [];
+  let devicesEnabled = true;
 
   // ------------------------------------------------------------------ utilitare
   async function api(path, opts) {
@@ -115,7 +118,7 @@
   function showApp() {
     $("login-view").classList.add("hidden");
     $("app-view").classList.remove("hidden");
-    $("me-name").textContent = me.display_name;
+    $("me-name").textContent = me.display_name || me.username || "—";
     switchTab(currentTab);
   }
 
@@ -142,17 +145,23 @@
   });
 
   // ------------------------------------------------------------------ taburi
-  document.querySelectorAll(".nav-item").forEach((b) =>
+  document.querySelectorAll(".menutab").forEach((b) =>
     b.addEventListener("click", () => switchTab(b.dataset.tab)));
 
   function switchTab(tab) {
+    if (tab !== "agents" && tab !== "devices") tab = "agents";
     currentTab = tab;
-    document.querySelectorAll(".nav-item").forEach((b) =>
+    document.querySelectorAll(".menutab").forEach((b) =>
       b.classList.toggle("active", b.dataset.tab === tab));
     $("tab-agents").classList.toggle("hidden", tab !== "agents");
-    $("tab-audit").classList.toggle("hidden", tab !== "audit");
-    $("page-title").textContent = tab === "agents" ? "Calculatoare" : "Jurnal de audit";
-    if (tab === "agents") startAgentsRefresh(); else { stopAgentsRefresh(); loadAudit(); }
+    $("tab-devices").classList.toggle("hidden", tab !== "devices");
+    if (tab === "agents") {
+      startAgentsRefresh();
+    } else {
+      stopAgentsRefresh();
+      loadDevices();
+      loadReveals();
+    }
   }
 
   // ------------------------------------------------------------------ calculatoare
@@ -216,29 +225,121 @@
   $("c-id").addEventListener("input", (e) => { e.target.value = fmtId(digits(e.target.value).slice(0, 9)); });
   $("c-code").addEventListener("input", (e) => { e.target.value = digits(e.target.value).slice(0, 6); });
 
-  // ------------------------------------------------------------------ audit
-  async function loadAudit() {
+  // ------------------------------------------------------------------ dispozitive (intervenție)
+  function copyText(text, okMsg) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => toast(okMsg || "Copiat în clipboard."),
+        () => modal("Copiați manual", "Selectați și copiați textul de mai jos.", { input: true, value: text }));
+    } else {
+      modal("Copiați manual", "Selectați și copiați textul de mai jos.", { input: true, value: text });
+    }
+  }
+
+  async function loadDevices() {
     try {
-      const rows = await api("/api/audit?limit=300");
-      const tbody = $("audit-table").querySelector("tbody");
+      const data = await api("/api/devices");
+      devices = (data && data.devices) || [];
+      devicesEnabled = !(data && data.enabled === false);
+      renderDevices();
+    } catch (e) { toast(e.message, { error: true }); }
+  }
+
+  function renderDevices() {
+    $("devices-disabled").classList.toggle("hidden", devicesEnabled);
+    $("devices-card").classList.toggle("hidden", !devicesEnabled);
+    if (!devicesEnabled) return;
+    const q = $("device-search").value.trim().toLowerCase();
+    const qd = digits(q);
+    const list = devices.filter((d) => !q ||
+      (qd && String(d.id || "").includes(qd)) ||
+      (d.hostname || "").toLowerCase().includes(q) ||
+      (d.user || "").toLowerCase().includes(q));
+    const tbody = $("devices-table").querySelector("tbody");
+    tbody.replaceChildren();
+    for (const d of list) {
+      const tr = el("tr");
+      // ID + copiere
+      const tdId = el("td");
+      const idWrap = el("span", "pw-cell");
+      idWrap.appendChild(el("span", "mono", d.id_formatat || d.id));
+      const copyId = el("button", "btn btn-secondary btn-sm", "Copiază ID");
+      copyId.addEventListener("click", () => copyText(d.id, "ID copiat: " + (d.id_formatat || d.id)));
+      idWrap.appendChild(copyId);
+      tdId.appendChild(idWrap);
+      tr.appendChild(tdId);
+      tr.appendChild(el("td", null, d.hostname || "—"));
+      tr.appendChild(el("td", null, d.user || "—"));
+      tr.appendChild(el("td", "mono", d.server || "—"));
+      tr.appendChild(el("td", null, d.last_reported ? fmtAgo(d.last_reported) : "—"));
+      // acțiuni: arată parola
+      const tdAct = el("td");
+      const actions = el("div", "row-actions");
+      const showBtn = el("button", "btn btn-primary btn-sm", "Arată parola");
+      showBtn.addEventListener("click", () => revealPassword(d, actions, showBtn));
+      actions.appendChild(showBtn);
+      tdAct.appendChild(actions);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+    }
+    $("devices-count").textContent = devices.length + (devices.length === 1 ? " dispozitiv" : " dispozitive");
+    $("devices-empty").classList.toggle("hidden", list.length > 0);
+  }
+
+  async function revealPassword(d, actions, btn) {
+    btn.disabled = true;
+    btn.textContent = "Se dezvăluie…";
+    try {
+      const res = await api("/api/devices/" + encodeURIComponent(d.id) + "/password");
+      const pw = (res && res.password) || "";
+      actions.replaceChildren();
+      const cell = el("span", "pw-cell");
+      cell.appendChild(el("span", "pw-value", pw || "(fără parolă)"));
+      if (pw) {
+        const copyPw = el("button", "btn btn-secondary btn-sm", "Copiază");
+        copyPw.addEventListener("click", () => copyText(pw, "Parolă copiată."));
+        cell.appendChild(copyPw);
+      }
+      const hide = el("button", "btn btn-ghost btn-sm", "Ascunde");
+      hide.addEventListener("click", () => {
+        actions.replaceChildren();
+        const again = el("button", "btn btn-primary btn-sm", "Arată parola");
+        again.addEventListener("click", () => revealPassword(d, actions, again));
+        actions.appendChild(again);
+      });
+      cell.appendChild(hide);
+      actions.appendChild(cell);
+      loadReveals();
+    } catch (e) {
+      toast(e.message, { error: true });
+      btn.disabled = false;
+      btn.textContent = "Arată parola";
+    }
+  }
+
+  $("device-search").addEventListener("input", renderDevices);
+  $("devices-refresh").addEventListener("click", loadDevices);
+
+  // ------------------------------------------------------------------ jurnal dezvăluiri (device_reveal)
+  async function loadReveals() {
+    try {
+      const rows = await api("/api/audit?limit=500");
+      const list = (rows || []).filter((r) => r.event === "device_reveal");
+      const tbody = $("reveal-table").querySelector("tbody");
       tbody.replaceChildren();
-      for (const r of rows) {
+      for (const r of list) {
         const tr = el("tr");
         tr.appendChild(el("td", null, fmtTime(r.ts)));
-        const td = el("td");
-        td.appendChild(el("span", "ev" + (BAD_EVENTS.has(r.event) ? " bad" : GOOD_EVENTS.has(r.event) ? " good" : ""),
-          EVENT_NAMES[r.event] || r.event));
-        tr.appendChild(td);
         tr.appendChild(el("td", null, r.tech || "—"));
         tr.appendChild(el("td", "mono", r.agent_id ? fmtId(r.agent_id) : "—"));
         tr.appendChild(el("td", null, r.hostname || "—"));
         tr.appendChild(el("td", "mono", r.ip || "—"));
-        tr.appendChild(el("td", null, r.details || ""));
         tbody.appendChild(tr);
       }
+      $("reveal-empty").classList.toggle("hidden", list.length > 0);
     } catch (e) { toast(e.message, { error: true }); }
   }
-  $("audit-refresh").addEventListener("click", loadAudit);
+  $("reveal-refresh").addEventListener("click", loadReveals);
 
   // ------------------------------------------------------------------ sesiune
   const canvas = $("screen");
