@@ -21,8 +21,11 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from . import __version__
+from .cipher import PasswordCipher
 from .config import PACKAGE_DIR, Config
 from .db import Database
+
+_DEVICE_ID_RE = re.compile(r"^\d{9,10}$")
 
 log = logging.getLogger("asistenta")
 
@@ -240,6 +243,25 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
     app.state.db = db
     app.state.hub = hub
 
+    # Cifru pentru parolele RustDesk (nesupravegheat). Dacă enc_secret lipsește,
+    # dezactivăm elegant partea de dispozitive (nu blocăm asistența cu acord).
+    try:
+        cipher: Optional[PasswordCipher] = PasswordCipher(cfg.enc_secret) if cfg.enc_secret else None
+    except Exception:
+        cipher = None
+    # Limitare rată simplă per IP pentru /api/register (în memorie).
+    _reg_hits: dict[str, deque] = defaultdict(deque)
+
+    def register_allowed(ip: str) -> bool:
+        now = time.time()
+        dq = _reg_hits[ip]
+        while dq and now - dq[0] > cfg.register_rate_window:
+            dq.popleft()
+        if len(dq) >= cfg.register_rate_limit:
+            return False
+        dq.append(now)
+        return True
+
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
@@ -348,6 +370,83 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
             return unauthorized()
         limit = max(1, min(int(limit), 2000))
         return db.get_audit(limit)
+
+    # ----------------------------------------- dispozitive (nesupravegheat)
+    @app.get("/api/devices")
+    async def devices(request: Request):
+        if not current_user(request):
+            return unauthorized()
+        rows = db.list_devices()
+        out = []
+        for r in rows:
+            did = r["id"]
+            out.append({
+                "id": did,
+                "id_formatat": " ".join(did[i:i + 3] for i in range(0, len(did), 3)),
+                "hostname": r["hostname"] or "",
+                "user": r["device_user"] or "",
+                "server": r["server"] or "",
+                "first_seen": r["first_seen"],
+                "last_reported": r["last_reported"],
+            })
+        return {"devices": out, "enabled": cipher is not None}
+
+    @app.get("/api/devices/{device_id}/password")
+    async def device_password(device_id: str, request: Request):
+        user = current_user(request)
+        if not user:
+            return unauthorized()
+        if cipher is None:
+            return JSONResponse({"error": "Partea de dispozitive nu e configurată."}, status_code=503)
+        row = db.get_device(device_id)
+        if row is None:
+            return JSONResponse({"error": "Dispozitiv inexistent"}, status_code=404)
+        try:
+            plain = cipher.decrypt(row["enc_password"]) if row["enc_password"] else ""
+        except ValueError:
+            return JSONResponse({"error": "Parola nu a putut fi decriptată"}, status_code=500)
+        # audităm dezvăluirea (cine, ce dispozitiv, IP)
+        await run_in_threadpool(db.audit, "device_reveal", user["display_name"],
+                                device_id, row["hostname"] or "", client_ip(request),
+                                "parolă RustDesk dezvăluită")
+        return {"id": device_id, "password": plain}
+
+    @app.post("/api/register")
+    async def register_device(request: Request):
+        ip = client_ip(request)
+        if not register_allowed(ip):
+            return JSONResponse({"ok": False, "error": "prea multe cereri"}, status_code=429)
+        auth = request.headers.get("authorization", "")
+        token = auth[7:] if auth.lower().startswith("bearer ") else ""
+        if not cfg.ingest_token or not token or not hmac.compare_digest(token, cfg.ingest_token):
+            return JSONResponse({"ok": False, "error": "token invalid"}, status_code=401)
+        clen = request.headers.get("content-length")
+        if clen is not None:
+            try:
+                if int(clen) > cfg.max_body_bytes:
+                    return JSONResponse({"ok": False, "error": "corp prea mare"}, status_code=413)
+            except ValueError:
+                return JSONResponse({"ok": False, "error": "Content-Length invalid"}, status_code=400)
+        raw = await request.body()
+        if len(raw) > cfg.max_body_bytes:
+            return JSONResponse({"ok": False, "error": "corp prea mare"}, status_code=413)
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            assert isinstance(data, dict)
+        except Exception:
+            return JSONResponse({"ok": False, "error": "JSON invalid"}, status_code=400)
+        device_id = str(data.get("id") or "").strip()
+        if not _DEVICE_ID_RE.match(device_id):
+            return JSONResponse({"ok": False, "error": "ID RustDesk invalid (9-10 cifre)"}, status_code=422)
+        if cipher is None:
+            return JSONResponse({"ok": False, "error": "server neconfigurat (enc_secret)"}, status_code=503)
+        password = str(data.get("password") or "")
+        hostname = str(data.get("hostname") or "").strip()[:255]
+        server = str(data.get("server") or "").strip()[:255]
+        device_user = str(data.get("user") or "").strip()[:255]
+        enc = cipher.encrypt(password) if password else ""
+        await run_in_threadpool(db.upsert_device, device_id, hostname, enc, device_user, server)
+        return {"ok": True}
 
     # ------------------------------------------------------------- WS helpers
     async def receive(ws: WebSocket) -> Optional[dict]:

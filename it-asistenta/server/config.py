@@ -28,6 +28,12 @@ class Config:
     code_max_failures: int = 5
     code_window_seconds: int = 600
     hello_timeout: float = 15.0
+    # --- dispozitive nesupravegheate (RustDesk) ---
+    ingest_token: str = ""          # token Bearer cu care laptopurile raportează
+    enc_secret: str = ""            # secret pentru criptarea parolelor RustDesk în repaus
+    register_rate_limit: int = 60   # cereri /api/register per fereastră, per IP
+    register_rate_window: float = 60.0
+    max_body_bytes: int = 64 * 1024
 
     # căi absolute rezolvate față de folderul pachetului
     def resolve(self, p: str) -> str:
@@ -68,7 +74,16 @@ def load_config(path: Optional[str] = None, create: bool = True) -> Config:
             data = json.load(f) or {}
     known = {f.name for f in fields(Config)}
     cfg = Config(**{k: v for k, v in data.items() if k in known})
-    if create and not os.path.isfile(path):
+    # Generează secretele pentru dispozitivele nesupravegheate la prima rulare.
+    import secrets as _secrets
+    changed = False
+    if not cfg.ingest_token:
+        cfg.ingest_token = _secrets.token_urlsafe(32)
+        changed = True
+    if not cfg.enc_secret:
+        cfg.enc_secret = _secrets.token_urlsafe(48)
+        changed = True
+    if create and (not os.path.isfile(path) or changed):
         save_config(cfg, path)
     return cfg
 
