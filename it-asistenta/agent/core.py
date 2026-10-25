@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import ssl
+import sys
 import threading
 import time
 from typing import Callable, List, Optional
@@ -400,7 +401,12 @@ class AgentCore:
                 continue
             try:
                 frame = cap.grab(mon)
-            except Exception:
+            except Exception as e:
+                if not getattr(self, "_grab_err_shown", False):
+                    self._grab_err_shown = True
+                    import traceback
+                    print("EROARE captură ecran (mss):", e, file=sys.stderr)
+                    traceback.print_exc()
                 time.sleep(0.2)
                 continue
             scale = self._scale
