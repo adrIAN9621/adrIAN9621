@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS audit (
     details  TEXT
 );
 CREATE INDEX IF NOT EXISTS audit_ts ON audit(ts);
+-- Dispozitive pentru control NEsupravegheat (RustDesk). Parola de acces
+-- neasistat este criptată în repaus (Fernet). Raportate de laptopuri prin
+-- POST /api/register (token Bearer).
+CREATE TABLE IF NOT EXISTS devices (
+    id            TEXT PRIMARY KEY,
+    hostname      TEXT NOT NULL DEFAULT '',
+    enc_password  TEXT NOT NULL DEFAULT '',
+    device_user   TEXT NOT NULL DEFAULT '',
+    server        TEXT NOT NULL DEFAULT '',
+    first_seen    REAL NOT NULL,
+    last_reported REAL NOT NULL
+);
 """
 
 
@@ -189,3 +201,36 @@ class Database:
 
     def get_audit(self, limit: int = 200) -> list[dict]:
         return self._all("SELECT * FROM audit ORDER BY id DESC LIMIT ?", (limit,))
+
+    # ---------------- dispozitive (RustDesk / nesupravegheat) ----------------
+    def upsert_device(self, device_id: str, hostname: str, enc_password: str,
+                      device_user: str, server: str) -> None:
+        now = time.time()
+        with self._lock:
+            exists = self._conn.execute(
+                "SELECT 1 FROM devices WHERE id=?", (device_id,)).fetchone()
+            if exists is None:
+                self._conn.execute(
+                    "INSERT INTO devices(id, hostname, enc_password, device_user, server, "
+                    "first_seen, last_reported) VALUES(?,?,?,?,?,?,?)",
+                    (device_id, hostname, enc_password, device_user, server, now, now))
+            else:
+                # parolă goală la raportare => păstrăm parola existentă
+                if enc_password:
+                    self._conn.execute(
+                        "UPDATE devices SET hostname=?, enc_password=?, device_user=?, "
+                        "server=?, last_reported=? WHERE id=?",
+                        (hostname, enc_password, device_user, server, now, device_id))
+                else:
+                    self._conn.execute(
+                        "UPDATE devices SET hostname=?, device_user=?, server=?, "
+                        "last_reported=? WHERE id=?",
+                        (hostname, device_user, server, now, device_id))
+
+    def list_devices(self) -> list[dict]:
+        return self._all(
+            "SELECT id, hostname, device_user, server, first_seen, last_reported "
+            "FROM devices ORDER BY last_reported DESC")
+
+    def get_device(self, device_id: str) -> Optional[dict]:
+        return self._one("SELECT * FROM devices WHERE id=?", (device_id,))

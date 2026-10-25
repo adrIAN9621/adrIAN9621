@@ -93,6 +93,16 @@ def cmd_listusers(cfg: Config, args) -> int:
     return 0
 
 
+def cmd_token(cfg: Config, args) -> int:
+    """Afișează token-ul cu care laptopurile își raportează ID-ul/parola RustDesk."""
+    print("Token de înregistrare a laptopurilor (pentru /api/register):")
+    print()
+    print("   " + (cfg.ingest_token or "(negenerat — porniți serverul o dată)"))
+    print()
+    print("Puneți-l în scriptul de pe laptop (collector_url + ingest_token).")
+    return 0
+
+
 def cmd_gencert(cfg: Config, args) -> int:
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -167,6 +177,7 @@ def main(argv=None) -> int:
     d = sub.add_parser("deluser", help="șterge un tehnician")
     d.add_argument("username")
     sub.add_parser("listusers", help="listează tehnicienii")
+    sub.add_parser("token", help="afișează token-ul de înregistrare a laptopurilor (RustDesk)")
     g = sub.add_parser("gencert", help="generează un certificat TLS autosemnat")
     g.add_argument("--hostname", help="numele serverului (implicit din config)")
     g.add_argument("--san", action="append", help="nume/IP suplimentar (repetabil)")
@@ -178,7 +189,8 @@ def main(argv=None) -> int:
         args.host = None
         args.port = None
     return {"run": cmd_run, "adduser": cmd_adduser, "deluser": cmd_deluser,
-            "listusers": cmd_listusers, "gencert": cmd_gencert}[cmd](cfg, args)
+            "listusers": cmd_listusers, "gencert": cmd_gencert,
+            "token": cmd_token}[cmd](cfg, args)
 
 
 if __name__ == "__main__":
