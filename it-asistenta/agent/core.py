@@ -181,8 +181,19 @@ class AgentCore:
         self._ping_thread.start()
 
     def _recv_loop(self, ws):
+        import websocket
+        last_rx = time.monotonic()
         while not self._stop.is_set():
-            msg = ws.recv()
+            try:
+                msg = ws.recv()
+            except websocket.WebSocketTimeoutException:
+                # Inactivitate (ex. ecran static): NU e o deconectare. recv() are
+                # timeout mic doar ca sa putem verifica periodic oprirea. Ne
+                # reconectam doar daca chiar nu vine NIMIC (nici pong) mult timp.
+                if time.monotonic() - last_rx > 60:
+                    raise RuntimeError("fără răspuns de la server (timeout)")
+                continue
+            last_rx = time.monotonic()
             if msg is None or msg == "":
                 if not ws.connected:
                     raise RuntimeError("conexiune închisă")
