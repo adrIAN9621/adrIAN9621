@@ -1,0 +1,5 @@
+{
+  "server_url": "wss://asistenta.carpaticaferoviar.ro/ws/agent",
+  "verify_tls": true,
+  "allow_insecure": false
+}
