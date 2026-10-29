@@ -12,6 +12,7 @@ if not exist config.json (
 python -m pip install --upgrade pyinstaller >nul 2>&1
 
 pyinstaller --onefile --noconsole --name "Carpatica-Asistenta-IT" ^
+  --icon icon.ico ^
   --add-data "config.json;." ^
   --hidden-import pynput.keyboard._win32 ^
   --hidden-import pynput.mouse._win32 ^
