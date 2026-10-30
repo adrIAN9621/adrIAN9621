@@ -9,8 +9,8 @@
 # ----------------------------------------------------------------------------
 
 # URL-ul de bază al serverului unificat (schema + gazdă + port). FĂRĂ „/" la final.
-# Exemplu tipic: https://server.carpatica:8443
-$SERVER_URL   = "https://server.carpatica:8443"
+# Producție Carpatica (prin Caddy, fără port): https://asistenta.carpaticaferoviar.ro
+$SERVER_URL   = "https://asistenta.carpaticaferoviar.ro"
 
 # Tokenul de înregistrare (ingest_token). Se obține pe server cu:
 #     python -m server token
