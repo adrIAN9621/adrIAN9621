@@ -1,5 +1,5 @@
 {
-  "server_url": "wss://it.carpatica.local:8443/ws/agent",
+  "server_url": "wss://asistenta.carpaticaferoviar.ro/ws/agent",
   "ca_file": null,
   "verify_tls": true,
   "allow_insecure": false,
