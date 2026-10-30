@@ -7,11 +7,10 @@ if not exist "%DEST%" mkdir "%DEST%"
 copy /y "%~dp0Carpatica-Asistenta-IT.exe" "%DEST%\" >nul || exit /b 1
 copy /y "%~dp0config.json" "%DEST%\" >nul || exit /b 1
 
-REM Pornire automata la logon, in sesiunea utilizatorului (fereastra cu ID + consimtamant).
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CarpaticaAsistentaIT" /t REG_SZ /d "\"%DEST%\Carpatica-Asistenta-IT.exe\"" /f >nul
+REM Fara autorulare: agentul se porneste manual de catre user (iconita de mai jos).
 
 REM Scurtatura in meniul Start si pe Desktop (pentru toti utilizatorii),
-REM ca userul sa poata porni/redeschide agentul manual.
+REM ca userul sa porneasca agentul cand are nevoie de suport.
 set "SM=%ProgramData%\Microsoft\Windows\Start Menu\Programs"
 powershell -NoProfile -Command ^
   "$w=New-Object -ComObject WScript.Shell;" ^

@@ -39,7 +39,8 @@ Intune → **Apps → Windows → Add → Windows app (Win32)** → încarcă `i
 
 ## Ce face pe laptop
 - Copiază `.exe` + `config.json` în `C:\Program Files\Carpatica Asistenta IT\`.
-- Pornire automată la logon (`HKLM\...\Run`) + scurtătură în meniul Start.
+- Pune o **iconiță pe Desktop** (toți utilizatorii) + scurtătură în meniul Start.
+  **Fără autorulare** — userul pornește agentul manual, de pe iconiță, când are nevoie de suport.
 - Agentul rulează în sesiunea utilizatorului și afișează o fereastră cu **ID + cod**
   (ca AnyDesk). Starea (ID+secret) se salvează în `%APPDATA%\CarpaticaAsistentaIT`.
 - Tehnicianul se conectează din consolă cu ID-ul + codul; angajatul **acceptă**.
