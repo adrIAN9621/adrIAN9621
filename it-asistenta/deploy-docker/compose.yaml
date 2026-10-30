@@ -1,0 +1,39 @@
+# ----------------------------------------------------------------------------
+#  Carpatica Asistență IT – server releu, pe platforma Docker + Caddy comună.
+#  Expune portul 8080 DOAR în rețeaua internă `web`; accesul public se face prin
+#  Caddy (HTTPS automat). Nicio publicare de port pe host. Variabilele vin din
+#  fișierul .env (interpolare Compose) — vezi .env.example.
+# ----------------------------------------------------------------------------
+name: ${APP_NAME}
+
+services:
+  app:
+    image: ${APP_IMAGE}
+    container_name: ${APP_NAME}-app
+    env_file:
+      - ${APP_ENV_FILE}
+    environment:
+      PORT: "8080"
+    expose:
+      - "8080"
+    volumes:
+      - ${APP_DATA_DIR}:/data
+    networks:
+      proxy:
+        aliases:
+          - ${APP_NAME}-app
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: ${APP_MEMORY_LIMIT}
+
+networks:
+  proxy:
+    external: true
+    name: ${CADDY_NETWORK}

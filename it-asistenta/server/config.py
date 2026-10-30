@@ -34,6 +34,11 @@ class Config:
     register_rate_limit: int = 60   # cereri /api/register per fereastră, per IP
     register_rate_window: float = 60.0
     max_body_bytes: int = 64 * 1024
+    # În spatele unui reverse proxy de încredere (ex. Caddy în Docker): preia
+    # IP-ul real al clientului din X-Forwarded-For. A se activa DOAR când aplicația
+    # este accesibilă exclusiv prin proxy (fără port publicat către exterior).
+    trust_proxy: bool = False
+    forwarded_allow_ips: str = "127.0.0.1"
 
     # căi absolute rezolvate față de folderul pachetului
     def resolve(self, p: str) -> str:

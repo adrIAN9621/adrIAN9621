@@ -1,0 +1,24 @@
+# ----------------------------------------------------------------------------
+#  Bloc de adăugat în Caddyfile-ul COMUN (ex. /srv/apps/proxy/Caddyfile).
+#  ADĂUGAȚI blocul, nu înlocuiți site-urile altor aplicații. Apoi validați și
+#  reîncărcați Caddy (vezi README, pasul 5).
+#
+#  reverse_proxy gestionează automat upgrade-ul WebSocket pentru /ws/agent și
+#  /ws/tech — nu e nevoie de configurare suplimentară.
+# ----------------------------------------------------------------------------
+
+# Varianta A — domeniu PUBLIC (laptopuri din orice rețea). Caddy obține automat
+# un certificat Let's Encrypt. Necesită ca domeniul să rezolve public către
+# acest server și portul 443 să fie accesibil din internet.
+asistenta.carpaticaferoviar.ro {
+	encode zstd gzip
+	reverse_proxy asistenta-app:8080
+}
+
+# Varianta B — doar INTERN / VPN (dezcomentați și ștergeți varianta A dacă e cazul).
+# Caddy folosește o autoritate internă; distribuiți root.crt pe laptopuri.
+# asistenta.carpaticaferoviar.ro {
+# 	tls internal
+# 	encode zstd gzip
+# 	reverse_proxy asistenta-app:8080
+# }

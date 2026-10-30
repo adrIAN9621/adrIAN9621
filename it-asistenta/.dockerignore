@@ -1,0 +1,20 @@
+# Contextul de build conține doar ce copiază Dockerfile (server/ + entrypoint).
+# Restul e exclus ca să rămână contextul mic și fără fișiere locale/secrete.
+agent
+deploy-intune
+deploy-linux
+tests
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+# Nu trimiteți niciodată configul/datele/certificatele locale în imagine.
+server/config.json
+server/data
+server/certs
+**/*.db
+**/*.db-wal
+**/*.db-shm
+*.md
+Porneste-*.bat
+.git
+.gitignore

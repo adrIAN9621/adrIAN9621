@@ -53,8 +53,10 @@ def cmd_run(cfg: Config, args) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     app = create_app(cfg)
     print(f"Carpatica Asistență IT – consola: {scheme}://{cfg.hostname}:{cfg.port}/")
+    if cfg.trust_proxy:
+        ssl_kwargs["forwarded_allow_ips"] = cfg.forwarded_allow_ips or "127.0.0.1"
     uvicorn.run(app, host=cfg.host, port=cfg.port, ws_max_size=cfg.max_message_size + 1024,
-                proxy_headers=False, server_header=False, log_level="info", **ssl_kwargs)
+                proxy_headers=cfg.trust_proxy, server_header=False, log_level="info", **ssl_kwargs)
     return 0
 
 

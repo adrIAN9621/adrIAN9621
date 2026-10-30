@@ -290,6 +290,11 @@ def create_app(cfg: Config, db: Optional[Database] = None) -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+    @app.get("/healthz")
+    async def healthz():
+        # Stare pentru Caddy/Docker: fără date sensibile, fără autentificare.
+        return {"status": "ok", "app": "asistenta"}
+
     @app.post("/api/login")
     async def login(request: Request):
         ip = client_ip(request)
