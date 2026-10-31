@@ -1,0 +1,27 @@
+# ----------------------------------------------------------------------------
+#  Cloudflare Tunnel pentru serverul Carpatica Asistență IT.
+#  Publică `asistenta.carpaticaferoviar.ro` pe internet FĂRĂ a deschide porturi
+#  (cloudflared face o conexiune de IEȘIRE spre Cloudflare). Rulează pe rețeaua
+#  `web`, ca să ajungă la containerul aplicației prin aliasul `asistenta-app`.
+#  SEPARAT de stiva aplicației și de Caddy — nu atinge celelalte servicii.
+#
+#  Tokenul tunelului se obține din dashboard-ul Cloudflare (vezi README) și se
+#  pune în .env (NU se comite).
+# ----------------------------------------------------------------------------
+name: cloudflared
+
+services:
+  cloudflared:
+    # Versiunea exactă apare în comanda Docker din dashboard-ul Cloudflare;
+    # potriviți-o dacă diferă.
+    image: cloudflare/cloudflared:2024.8.2
+    container_name: cloudflared
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+    name: web
