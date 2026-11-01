@@ -18,7 +18,10 @@ pyinstaller --onefile --noconsole --name "Carpatica-Asistenta-IT" ^
   --hidden-import pynput.mouse._win32 ^
   carpatica_agent.py
 
+REM Agentul citeste config.json de LANGA .exe (nu cel bundle-uit), deci il copiem acolo.
+copy /y config.json "dist\config.json" >nul
+
 echo.
 echo [OK] Executabil generat in dist\Carpatica-Asistenta-IT.exe
-echo     config.json este inclus langa aplicatie.
+echo     config.json copiat langa .exe in dist\ (editabil).
 endlocal

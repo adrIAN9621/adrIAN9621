@@ -68,7 +68,7 @@ def load_or_create_state(directory: Optional[Path] = None) -> dict:
 
 @dataclass
 class AgentConfig:
-    server_url: str = "wss://it.carpatica.local:8443/ws/agent"
+    server_url: str = "wss://asistenta.carpaticaferoviar.ro/ws/agent"
     ca_file: Optional[str] = None
     verify_tls: bool = True
     allow_insecure: bool = False
