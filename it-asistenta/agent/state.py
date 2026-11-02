@@ -72,6 +72,9 @@ class AgentConfig:
     ca_file: Optional[str] = None
     verify_tls: bool = True
     allow_insecure: bool = False
+    # Mod nesupravegheat: acceptă automat conexiunile (fără dialogul de acord).
+    # Necesită agent instalat ca administrator (vezi deploy-intune-nesupravegheat).
+    unattended: bool = False
     default_quality: int = 60
     default_scale: float = 1.0
     default_fps: int = 10
@@ -100,7 +103,7 @@ def load_config(path: Optional[Path] = None) -> AgentConfig:
         except (OSError, ValueError):
             continue
         cfg = AgentConfig(base_dir=p.parent)
-        for k in ("server_url", "ca_file", "verify_tls", "allow_insecure",
+        for k in ("server_url", "ca_file", "verify_tls", "allow_insecure", "unattended",
                   "default_quality", "default_scale", "default_fps"):
             if k in raw:
                 setattr(cfg, k, raw[k])

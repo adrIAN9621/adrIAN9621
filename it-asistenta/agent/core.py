@@ -281,6 +281,11 @@ class AgentCore:
         if self._session_id is not None:
             self._reply_reject(session_id)
             return
+        if getattr(self.cfg, "unattended", False):
+            # Mod nesupravegheat: acceptă automat, fără dialogul de acord.
+            # Sesiunea rămâne vizibilă (fereastra arată „sesiune activă") și e în jurnalul serverului.
+            self._accept(session_id, tech)
+            return
         try:
             ok = bool(self.cb.on_consent(tech, session_id))
         except Exception:
