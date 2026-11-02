@@ -1,0 +1,38 @@
+# ----------------------------------------------------------------------------
+#  Server RustDesk (hbbs + hbbr) pentru acces NESUPRAVEGHEAT, pe appsrv1.
+#  SEPARAT de stiva Caddy/`web`: RustDesk NU merge prin reverse proxy — are
+#  nevoie de porturile lui, direct pe host (TCP + UDP). Datele (inclusiv cheia
+#  id_ed25519) stau in ./data, persistent.
+#
+#  Porturi:
+#    hbbs 21115/tcp (legacy), 21116/tcp + 21116/udp (ID/rendezvous), 21118/tcp (web)
+#    hbbr 21117/tcp (relay),  21119/tcp (web relay)
+# ----------------------------------------------------------------------------
+name: rustdesk
+
+services:
+  hbbs:
+    image: rustdesk/rustdesk-server:1.1.14
+    container_name: rustdesk-hbbs
+    command: hbbs
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21118:21118"
+    volumes:
+      - ./data:/root
+    restart: unless-stopped
+    depends_on:
+      - hbbr
+
+  hbbr:
+    image: rustdesk/rustdesk-server:1.1.14
+    container_name: rustdesk-hbbr
+    command: hbbr
+    ports:
+      - "21117:21117"
+      - "21119:21119"
+    volumes:
+      - ./data:/root
+    restart: unless-stopped

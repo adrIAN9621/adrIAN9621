@@ -28,15 +28,16 @@ $AGENT_WS_URL = (($SERVER_URL -replace '^https://','wss://') -replace '^http://'
 # ----------------------------------------------------------------------------
 
 # Gazda (IP sau nume DNS) pe care rulează hbbs ȘI hbbr.
-$RD_HOST  = "rustdesk.carpatica.local"
+# Producție Carpatica: serverul RustDesk e pe appsrv1 (vezi rustdesk-server/README.md).
+$RD_HOST  = "172.17.17.115"
 
 # Cheia publică a serverului: conținutul fișierului id_ed25519.pub din folderul
 # de date al serverului (o singură linie, fără ghilimele). Obligatorie pentru
 # conexiuni criptate la serverul propriu.
 $RD_KEY   = "PUNETI_AICI_CHEIA_PUBLICA_id_ed25519.pub"
 
-# Serverul releu (hbbr). De regulă aceeași gazdă. Lăsați gol pentru deducere automată.
-$RD_RELAY = $RD_HOST
+# Serverul releu (hbbr). Aceeași gazdă ca hbbs (appsrv1).
+$RD_RELAY = "172.17.17.115"
 
 # API server (doar la RustDesk Server Pro). Gol la varianta open-source.
 $RD_API   = ""
