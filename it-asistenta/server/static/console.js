@@ -292,11 +292,14 @@
       tr.appendChild(el("td", null, d.user || "—"));
       tr.appendChild(el("td", "mono", d.server || "—"));
       tr.appendChild(el("td", null, d.last_reported ? fmtAgo(d.last_reported) : "—"));
-      // acțiuni: arată parola
+      // acțiuni: conectează (RustDesk) + arată parola
       const tdAct = el("td");
       const actions = el("div", "row-actions");
-      const showBtn = el("button", "btn btn-primary btn-sm", "Arată parola");
+      const connBtn = el("button", "btn btn-primary btn-sm", "Conectează (RustDesk)");
+      connBtn.addEventListener("click", () => connectRustdesk(d, connBtn));
+      const showBtn = el("button", "btn btn-secondary btn-sm", "Arată parola");
       showBtn.addEventListener("click", () => revealPassword(d, actions, showBtn));
+      actions.appendChild(connBtn);
       actions.appendChild(showBtn);
       tdAct.appendChild(actions);
       tr.appendChild(tdAct);
@@ -334,6 +337,32 @@
       toast(e.message, { error: true });
       btn.disabled = false;
       btn.textContent = "Arată parola";
+    }
+  }
+
+  function openExternalUri(url) {
+    // Deschide un protocol extern (ex. rustdesk://) fără a naviga consola.
+    const a = el("a"); a.href = url; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(() => a.remove(), 1000);
+  }
+
+  async function connectRustdesk(d, btn) {
+    const old = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Se pregătește…";
+    try {
+      // Dezvăluie parola (acțiune auditată), o copiază și deschide RustDesk pe ID.
+      const res = await api("/api/devices/" + encodeURIComponent(d.id) + "/password");
+      const pw = (res && res.password) || "";
+      if (pw) copyText(pw, "Parolă copiată — lipiți-o în RustDesk (Ctrl+V).");
+      openExternalUri("rustdesk://" + encodeURIComponent(d.id));
+      loadReveals();
+    } catch (e) {
+      toast(e.message, { error: true });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
     }
   }
 
