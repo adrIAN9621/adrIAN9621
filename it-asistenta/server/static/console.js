@@ -31,6 +31,8 @@
   let currentTab = "agents";
   let devices = [];
   let devicesEnabled = true;
+  let auditRows = [];
+  let auditTypeFilled = false;
 
   // ------------------------------------------------------------------ utilitare
   async function api(path, opts) {
@@ -44,7 +46,8 @@
     let data = null;
     try { data = await r.json(); } catch (e) { data = null; }
     if (r.status === 401 && path !== "/api/login") {
-      showLogin();
+      applyAuth(null);
+      openLogin();
       throw new Error("Sesiunea a expirat. Autentificați-vă din nou.");
     }
     if (!r.ok) throw new Error((data && data.error) || ("Eroare " + r.status));
@@ -107,30 +110,46 @@
   }
 
   // ------------------------------------------------------------------ autentificare
-  function showLogin() {
-    stopAgentsRefresh();
-    $("app-view").classList.add("hidden");
+  // Consola se deschide „ca user normal": aplicația e vizibilă, iar login-ul
+  // (buton sus-dreapta) deblochează funcțiile de tehnician.
+  function applyAuth(user) {
+    me = user || null;
+    const authed = !!me;
+    $("app-view").classList.remove("hidden");
     $("session-view").classList.add("hidden");
-    $("login-view").classList.remove("hidden");
-    setTimeout(() => $("login-user").focus(), 0);
+    closeLogin();
+    $("login-open").classList.toggle("hidden", authed);
+    $("auth-user").classList.toggle("hidden", !authed);
+    $("auth-gate").classList.toggle("hidden", authed);
+    $("app-tabs").classList.toggle("hidden", !authed);
+    if (authed) {
+      $("me-name").textContent = me.display_name || me.username || "—";
+      switchTab(currentTab);
+    } else {
+      stopAgentsRefresh();
+    }
   }
 
-  function showApp() {
-    $("login-view").classList.add("hidden");
-    $("app-view").classList.remove("hidden");
-    $("me-name").textContent = me.display_name || me.username || "—";
-    switchTab(currentTab);
+  function openLogin() {
+    $("login-error").textContent = "";
+    $("login-modal").classList.remove("hidden");
+    setTimeout(() => $("login-user").focus(), 0);
   }
+  function closeLogin() { $("login-modal").classList.add("hidden"); }
+
+  $("login-open").addEventListener("click", openLogin);
+  $("auth-gate-btn").addEventListener("click", openLogin);
+  $("login-cancel").addEventListener("click", closeLogin);
 
   $("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("login-error").textContent = "";
     $("login-btn").disabled = true;
     try {
-      me = await api("/api/login", { method: "POST",
+      const u = await api("/api/login", { method: "POST",
         body: { username: $("login-user").value.trim(), password: $("login-pass").value } });
       $("login-pass").value = "";
-      showApp();
+      applyAuth(u);
     } catch (err) {
       $("login-error").textContent = err.message;
     } finally {
@@ -140,8 +159,7 @@
 
   $("logout-btn").addEventListener("click", async () => {
     try { await api("/api/logout", { method: "POST" }); } catch (e) { /* ignorat */ }
-    me = null;
-    showLogin();
+    applyAuth(null);
   });
 
   // ------------------------------------------------------------------ taburi
@@ -149,12 +167,14 @@
     b.addEventListener("click", () => switchTab(b.dataset.tab)));
 
   function switchTab(tab) {
-    if (tab !== "agents" && tab !== "devices") tab = "agents";
+    if (tab !== "agents" && tab !== "devices" && tab !== "audit") tab = "agents";
     currentTab = tab;
     document.querySelectorAll(".menutab").forEach((b) =>
       b.classList.toggle("active", b.dataset.tab === tab));
     $("tab-agents").classList.toggle("hidden", tab !== "agents");
     $("tab-devices").classList.toggle("hidden", tab !== "devices");
+    $("tab-audit").classList.toggle("hidden", tab !== "audit");
+    if (tab === "audit") { stopAgentsRefresh(); loadAudit(); return; }
     if (tab === "agents") {
       startAgentsRefresh();
     } else {
@@ -340,6 +360,74 @@
     } catch (e) { toast(e.message, { error: true }); }
   }
   $("reveal-refresh").addEventListener("click", loadReveals);
+
+  // ------------------------------------------------------------------ audit (structurat)
+  function fillAuditTypes() {
+    if (auditTypeFilled) return;
+    const sel = $("audit-type");
+    for (const [key, label] of Object.entries(EVENT_NAMES)) {
+      const o = el("option", null, label); o.value = key; sel.appendChild(o);
+    }
+    auditTypeFilled = true;
+  }
+  async function loadAudit() {
+    fillAuditTypes();
+    try {
+      auditRows = await api("/api/audit?limit=2000") || [];
+      renderAudit();
+    } catch (e) { /* tratat în api() */ }
+  }
+  function renderAudit() {
+    const q = $("audit-search").value.trim().toLowerCase();
+    const qd = digits(q);
+    const type = $("audit-type").value;
+    const days = parseInt($("audit-range").value, 10) || 0;
+    const since = days ? (Date.now() / 1000 - days * 86400) : 0;
+    const list = auditRows.filter((r) => {
+      if (type && r.event !== type) return false;
+      if (since && (r.ts || 0) < since) return false;
+      if (!q) return true;
+      return (r.tech || "").toLowerCase().includes(q) ||
+        (r.hostname || "").toLowerCase().includes(q) ||
+        (r.ip || "").toLowerCase().includes(q) ||
+        (r.details || "").toLowerCase().includes(q) ||
+        (qd && (r.agent_id || "").includes(qd));
+    });
+    const tbody = $("audit-table").querySelector("tbody");
+    tbody.replaceChildren();
+    for (const r of list) {
+      const tr = el("tr");
+      tr.appendChild(el("td", "mono", fmtTime(r.ts)));
+      const tdEv = el("td");
+      const good = GOOD_EVENTS.has(r.event), bad = BAD_EVENTS.has(r.event);
+      tdEv.appendChild(el("span", "ev" + (bad ? " bad" : good ? " good" : ""),
+        EVENT_NAMES[r.event] || r.event));
+      tr.appendChild(tdEv);
+      tr.appendChild(el("td", null, r.tech || "—"));
+      tr.appendChild(el("td", "mono", r.agent_id ? fmtId(r.agent_id) : "—"));
+      tr.appendChild(el("td", null, r.hostname || "—"));
+      tr.appendChild(el("td", "mono", r.ip || "—"));
+      tr.appendChild(el("td", null, r.details || "—"));
+      tbody.appendChild(tr);
+    }
+    $("audit-count").textContent = list.length + " / " + auditRows.length;
+    $("audit-empty").classList.toggle("hidden", list.length > 0);
+    // mici statistici
+    const stats = $("audit-stats");
+    stats.replaceChildren();
+    const nBad = list.filter((r) => BAD_EVENTS.has(r.event)).length;
+    const nReveal = list.filter((r) => r.event === "device_reveal").length;
+    const nConnect = list.filter((r) => r.event === "accepted").length;
+    const mk = (lbl, val, cls) => { const s = el("span", "audit-chip" + (cls ? " " + cls : "")); s.appendChild(el("b", null, String(val))); s.appendChild(el("span", null, " " + lbl)); return s; };
+    stats.appendChild(mk("evenimente", list.length));
+    stats.appendChild(mk("conectări", nConnect, "ok"));
+    stats.appendChild(mk("parole dezvăluite", nReveal));
+    stats.appendChild(mk("eșecuri/respingeri", nBad, nBad ? "bad" : ""));
+  }
+  $("audit-search").addEventListener("input", renderAudit);
+  $("audit-type").addEventListener("change", renderAudit);
+  $("audit-range").addEventListener("change", renderAudit);
+  $("audit-refresh").addEventListener("click", loadAudit);
 
   // ------------------------------------------------------------------ sesiune
   const canvas = $("screen");
@@ -760,7 +848,7 @@
   (async function init() {
     try {
       const r = await fetch("/api/me", { credentials: "same-origin" });
-      if (r.ok) { me = await r.json(); showApp(); } else showLogin();
-    } catch (e) { showLogin(); }
+      applyAuth(r.ok ? await r.json() : null);
+    } catch (e) { applyAuth(null); }
   })();
 })();

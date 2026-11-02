@@ -20,29 +20,7 @@
   <span class="fx-scan"></span>
 </div>
 
-<!-- ============ Autentificare ============ -->
-<section id="login-view" class="login-view hidden">
-  <form id="login-form" class="login-card" autocomplete="on">
-    <div class="login-brand">
-      <img src="/static/brand/logo.svg" alt="" class="logo-lg">
-      <div>
-        <div class="brand-title">Carpatica Asistență IT</div>
-        <div class="brand-sub">&gt;_ consolă tehnicieni</div>
-      </div>
-    </div>
-    <label>Utilizator
-      <input id="login-user" name="username" autocomplete="username" required maxlength="64">
-    </label>
-    <label>Parolă
-      <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
-    </label>
-    <div id="login-error" class="form-error" role="alert"></div>
-    <button type="submit" class="btn btn-primary btn-block" id="login-btn">Autentificare</button>
-    <p class="login-note">Acces permis doar personalului IT autorizat. Toate acțiunile sunt înregistrate.</p>
-  </form>
-</section>
-
-<!-- ============ Aplicație ============ -->
+<!-- ============ Aplicație (mereu vizibilă; login-ul deblochează) ============ -->
 <div id="app-view" class="app-view hidden">
   <header class="appbar">
     <div class="appbar-left">
@@ -54,8 +32,13 @@
     <div class="appbar-right">
       <span class="signal-bar" aria-hidden="true"></span>
       <span id="clock" class="appbar-clock"></span>
-      <span class="appbar-user"><span class="dot-user"></span><span id="me-name">—</span></span>
-      <button id="logout-btn" class="btn btn-secondary btn-sm">Deconectare</button>
+      <!-- delogat: buton de autentificare -->
+      <button id="login-open" class="btn btn-primary btn-sm">Autentificare</button>
+      <!-- logat: utilizator + deconectare -->
+      <span id="auth-user" class="appbar-user hidden">
+        <span class="dot-user"></span><span id="me-name">—</span>
+        <button id="logout-btn" class="btn btn-secondary btn-sm">Deconectare</button>
+      </span>
     </div>
   </header>
 
@@ -64,80 +47,123 @@
     <div class="menutabs">
       <button class="menutab active" data-tab="agents">Calculatoare</button>
       <button class="menutab" data-tab="devices">Dispozitive</button>
+      <button class="menutab" data-tab="audit">Audit</button>
     </div>
   </nav>
 
   <main class="main">
-    <!-- Tab calculatoare (asistență cu acord) -->
-    <section id="tab-agents" class="tab">
-      <div class="card connect-card">
-        <h2>Conectare la un calculator</h2>
-        <p class="muted connect-note">Cereți angajatului <b>ID-ul</b> și <b>codul de acces</b> afișate în aplicația „Asistență IT”. Angajatul va trebui să accepte conexiunea.</p>
-        <form id="connect-form" class="connect-form" autocomplete="off">
-          <label>ID calculator
-            <input id="c-id" inputmode="numeric" placeholder="123 456 789" maxlength="11" required>
-          </label>
-          <label>Cod de acces
-            <input id="c-code" inputmode="numeric" placeholder="000000" maxlength="7" required>
-          </label>
-          <button class="btn btn-primary" type="submit">Conectare</button>
-        </form>
-        <div id="connect-error" class="form-error" role="alert"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <h2>Calculatoare înregistrate <span id="agents-count" class="pill"></span></h2>
-          <input id="agent-search" class="search" type="search" placeholder="Caută după ID, nume calculator sau utilizator…">
-        </div>
-        <div class="table-wrap">
-          <table class="tbl" id="agents-table">
-            <thead><tr><th>Stare</th><th>ID</th><th>Calculator</th><th>Utilizator</th><th>Sistem</th><th>Versiune</th><th>Văzut ultima dată</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="agents-empty" class="empty hidden">Niciun calculator găsit.</div>
-        </div>
+    <!-- Poartă de autentificare (delogat) -->
+    <section id="auth-gate" class="auth-gate hidden">
+      <div class="auth-card">
+        <img src="/static/brand/logo.svg" alt="" class="logo-lg">
+        <h2>Consola tehnicienilor</h2>
+        <p class="muted">Autentificați-vă pentru a vedea calculatoarele și a vă conecta.</p>
+        <button id="auth-gate-btn" class="btn btn-primary">Autentificare</button>
+        <p class="login-note">Acces permis doar personalului IT autorizat. Toate acțiunile sunt înregistrate.</p>
       </div>
     </section>
 
-    <!-- Tab dispozitive (intervenție nesupravegheată) -->
-    <section id="tab-devices" class="tab hidden">
-      <div id="devices-disabled" class="card alert-card hidden">
-        <h2>Dispozitive — indisponibil</h2>
-        <p class="muted">Partea de dispozitive nesupravegheate nu este configurată pe acest server (lipsește secretul de criptare a parolelor). Contactați administratorul.</p>
-      </div>
+    <!-- Conținut (logat) -->
+    <div id="app-tabs" class="hidden">
+      <!-- Tab calculatoare (asistență cu acord) -->
+      <section id="tab-agents" class="tab">
+        <div class="card connect-card">
+          <h2>Conectare la un calculator</h2>
+          <p class="muted connect-note">Cereți angajatului <b>ID-ul</b> și <b>codul de acces</b> afișate în aplicația „Asistență IT”. Angajatul va trebui să accepte conexiunea.</p>
+          <form id="connect-form" class="connect-form" autocomplete="off">
+            <label>ID calculator
+              <input id="c-id" inputmode="numeric" placeholder="123 456 789" maxlength="11" required>
+            </label>
+            <label>Cod de acces
+              <input id="c-code" inputmode="numeric" placeholder="000000" maxlength="7" required>
+            </label>
+            <button class="btn btn-primary" type="submit">Conectare</button>
+          </form>
+          <div id="connect-error" class="form-error" role="alert"></div>
+        </div>
 
-      <div id="devices-card" class="card">
-        <div class="card-head">
-          <h2>Dispozitive nesupravegheate <span id="devices-count" class="pill"></span></h2>
-          <div class="head-actions">
-            <input id="device-search" class="search" type="search" placeholder="Caută după ID, nume sau utilizator…">
-            <button id="devices-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+        <div class="card">
+          <div class="card-head">
+            <h2>Calculatoare înregistrate <span id="agents-count" class="pill"></span></h2>
+            <input id="agent-search" class="search" type="search" placeholder="Caută după ID, nume calculator sau utilizator…">
+          </div>
+          <div class="table-wrap">
+            <table class="tbl" id="agents-table">
+              <thead><tr><th>Stare</th><th>ID</th><th>Calculator</th><th>Utilizator</th><th>Sistem</th><th>Versiune</th><th>Văzut ultima dată</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="agents-empty" class="empty hidden">Niciun calculator găsit.</div>
           </div>
         </div>
-        <div class="table-wrap">
-          <table class="tbl" id="devices-table">
-            <thead><tr><th>ID</th><th>Calculator</th><th>Utilizator</th><th>Server</th><th>Raportat</th><th>Parolă</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="devices-empty" class="empty hidden">Niciun dispozitiv înregistrat.</div>
-        </div>
-      </div>
+      </section>
 
-      <div class="card">
-        <div class="card-head">
-          <h2>Jurnal dezvăluiri parole</h2>
-          <button id="reveal-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+      <!-- Tab dispozitive (intervenție nesupravegheată) -->
+      <section id="tab-devices" class="tab hidden">
+        <div id="devices-disabled" class="card alert-card hidden">
+          <h2>Dispozitive — indisponibil</h2>
+          <p class="muted">Partea de dispozitive nesupravegheate nu este configurată pe acest server (lipsește secretul de criptare a parolelor). Contactați administratorul.</p>
         </div>
-        <div class="table-wrap">
-          <table class="tbl" id="reveal-table">
-            <thead><tr><th>Data și ora</th><th>Tehnician</th><th>ID</th><th>Calculator</th><th>IP</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="reveal-empty" class="empty hidden">Nicio dezvăluire înregistrată.</div>
+
+        <div id="devices-card" class="card">
+          <div class="card-head">
+            <h2>Dispozitive nesupravegheate <span id="devices-count" class="pill"></span></h2>
+            <div class="head-actions">
+              <input id="device-search" class="search" type="search" placeholder="Caută după ID, nume sau utilizator…">
+              <button id="devices-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="tbl" id="devices-table">
+              <thead><tr><th>ID</th><th>Calculator</th><th>Utilizator</th><th>Server</th><th>Raportat</th><th>Parolă / Conectare</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="devices-empty" class="empty hidden">Niciun dispozitiv înregistrat.</div>
+          </div>
         </div>
-      </div>
-    </section>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Jurnal dezvăluiri parole</h2>
+            <button id="reveal-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+          </div>
+          <div class="table-wrap">
+            <table class="tbl" id="reveal-table">
+              <thead><tr><th>Data și ora</th><th>Tehnician</th><th>ID</th><th>Calculator</th><th>IP</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="reveal-empty" class="empty hidden">Nicio dezvăluire înregistrată.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab audit (structurat) -->
+      <section id="tab-audit" class="tab hidden">
+        <div class="card">
+          <div class="card-head">
+            <h2>Jurnal de audit <span id="audit-count" class="pill"></span></h2>
+            <div class="head-actions">
+              <input id="audit-search" class="search" type="search" placeholder="Caută (tehnician, ID, calculator, IP)…">
+              <select id="audit-type" class="audit-filter"><option value="">Toate evenimentele</option></select>
+              <select id="audit-range" class="audit-filter">
+                <option value="0">Oricând</option>
+                <option value="1">Ultimele 24h</option>
+                <option value="7">Ultimele 7 zile</option>
+                <option value="30">Ultimele 30 zile</option>
+              </select>
+              <button id="audit-refresh" class="btn btn-secondary btn-sm">Reîncarcă</button>
+            </div>
+          </div>
+          <div class="audit-stats" id="audit-stats"></div>
+          <div class="table-wrap">
+            <table class="tbl" id="audit-table">
+              <thead><tr><th>Data și ora</th><th>Eveniment</th><th>Tehnician</th><th>ID</th><th>Calculator</th><th>IP</th><th>Detalii</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <div id="audit-empty" class="empty hidden">Niciun eveniment.</div>
+          </div>
+        </div>
+      </section>
+    </div>
   </main>
 </div>
 
@@ -188,6 +214,30 @@
     <span id="st-res">—</span>
     <span class="muted-light st-hint">Clic pe imagine pentru a captura tastatura</span>
   </div>
+</div>
+
+<!-- ============ Login (modal, sus-dreapta) ============ -->
+<div id="login-modal" class="modal-back hidden">
+  <form id="login-form" class="modal login-modal" autocomplete="on">
+    <div class="login-brand">
+      <img src="/static/brand/logo.svg" alt="" class="logo-lg">
+      <div>
+        <div class="brand-title">Autentificare</div>
+        <div class="brand-sub">&gt;_ consolă tehnicieni</div>
+      </div>
+    </div>
+    <label>Utilizator
+      <input id="login-user" name="username" autocomplete="username" required maxlength="64">
+    </label>
+    <label>Parolă
+      <input id="login-pass" name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <div id="login-error" class="form-error" role="alert"></div>
+    <div class="modal-actions">
+      <button type="button" id="login-cancel" class="btn btn-secondary">Anulează</button>
+      <button type="submit" class="btn btn-primary" id="login-btn">Autentificare</button>
+    </div>
+  </form>
 </div>
 
 <!-- ============ Dialoguri ============ -->
