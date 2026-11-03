@@ -20,13 +20,19 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$RustDeskDir = (Join-Path $PSScriptRoot "..\rustdesk"),
+    [string]$RustDeskDir,
     [switch]$SkipRustDesk,
     [switch]$SkipAgent
 )
 
 $ErrorActionPreference = "Stop"
-. "$PSScriptRoot\config.ps1"
+
+# Folderul scriptului - robust (PSScriptRoot nu e mereu populat la bind-ul param()).
+$ScriptDir = $PSScriptRoot
+if (-not $ScriptDir) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $ScriptDir) { $ScriptDir = (Get-Location).Path }
+if (-not $RustDeskDir) { $RustDeskDir = Join-Path $ScriptDir "..\rustdesk" }
+. (Join-Path $ScriptDir "config.ps1")
 
 $DataDir = Join-Path $env:ProgramData "CarpaticaRemote"
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
@@ -70,7 +76,7 @@ try {
         try {
             Copy-Item -Path $rdInstall -Destination (Join-Path $stage "install.ps1") -Force
             foreach ($bundle in @("rustdesk.exe")) {
-                $src = Join-Path $PSScriptRoot $bundle
+                $src = Join-Path $ScriptDir $bundle
                 if (-not (Test-Path $src)) { $src = Join-Path $RustDeskDir $bundle }
                 if (Test-Path $src) {
                     Copy-Item -Path $src -Destination (Join-Path $stage $bundle) -Force
@@ -111,7 +117,7 @@ try {
 
     # ----------------------------------------------------------------------- AGENT
     if (-not $SkipAgent) {
-        $agentSrc = Join-Path $PSScriptRoot $AGENT_EXE_NAME
+        $agentSrc = Join-Path $ScriptDir $AGENT_EXE_NAME
         if (-not (Test-Path $agentSrc)) {
             Log ("EROARE: {0} nu există lângă acest script." -f $AGENT_EXE_NAME)
             Log "Construiți-l întâi: rulați it-asistenta\agent\build_exe.bat (Windows, Python 3.10+),"
