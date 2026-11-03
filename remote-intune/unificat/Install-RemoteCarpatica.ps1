@@ -41,7 +41,7 @@ $LogFile = Join-Path $DataDir "install-unificat.log"
 function Log($m) {
     $line = "{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m
     Add-Content -Path $LogFile -Value $line
-    Write-Output $line
+    Write-Host $line
 }
 
 # Emite o valoare PowerShell ca literal single-quote (sigur pentru chei/URL-uri).

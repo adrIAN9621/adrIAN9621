@@ -22,7 +22,7 @@ $LogFile = Join-Path $DataDir "install.log"
 function Log($m) {
     $line = "{0}  {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $m
     Add-Content -Path $LogFile -Value $line
-    Write-Output $line
+    Write-Host $line
 }
 
 function Get-RustDeskExe {
