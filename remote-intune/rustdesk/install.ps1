@@ -62,8 +62,15 @@ try {
     $setup = Get-RustDeskExe
     if (-not (Get-InstalledExe)) {
         Log "Rulez instalarea silențioasă..."
-        Start-Process -FilePath $setup -ArgumentList "--silent-install" -Wait
-        Start-Sleep -Seconds 15
+        # Fără -Wait: unele versiuni nu returnează (procesul instalatorului rămâne).
+        # Pornim instalarea și așteptăm să apară rustdesk.exe în Program Files.
+        Start-Process -FilePath $setup -ArgumentList "--silent-install" | Out-Null
+        $deadline = (Get-Date).AddSeconds(150)
+        while (-not (Get-InstalledExe) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 3 }
+        if (-not (Get-InstalledExe)) {
+            throw "RustDesk nu a apărut în Program Files în 150s (instalator blocat / flag silent nepreluat)."
+        }
+        Start-Sleep -Seconds 5
     } else {
         Log "RustDesk este deja instalat; continui cu configurarea."
     }
