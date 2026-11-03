@@ -8,10 +8,10 @@
 #>
 $ErrorActionPreference = "Stop"
 
-# Aceleași valori ca în config.ps1 de pe flotă:
-$RD_HOST  = "rustdesk.carpatica.local"
-$RD_KEY   = "PUNETI_AICI_CHEIA_PUBLICA_id_ed25519.pub"
-$RD_RELAY = $RD_HOST
+# Aceleași valori ca în config.ps1 de pe flotă (serverul RustDesk de pe appsrv1):
+$RD_HOST  = "172.17.17.115"
+$RD_KEY   = "c4Yeooo37NkPXUmlWgu4ERXs42BbYtKKMBHTIJh5wys="
+$RD_RELAY = "172.17.17.115"
 $RD_API   = ""
 
 function Get-InstalledExe {
