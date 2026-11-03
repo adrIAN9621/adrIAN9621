@@ -47,6 +47,9 @@ if ($RD_KEY -and $RD_KEY -ne "PUNETI_AICI_CHEIA_PUBLICA_id_ed25519.pub") {
 }
 if ($RD_RELAY) { & $exe --option "relay-server" "$RD_RELAY" | Out-Null }
 if ($RD_API)   { & $exe --option "api-server"   "$RD_API"   | Out-Null }
+# Întărire: fără modificare config la distanță, fără verificare update (internet).
+& $exe --option "allow-remote-config-modification" "N" | Out-Null
+& $exe --option "enable-check-update" "N" | Out-Null
 
 Write-Host ""
 Write-Host "Gata. Deschideți RustDesk, introduceți ID-ul și parola laptopului țintă."

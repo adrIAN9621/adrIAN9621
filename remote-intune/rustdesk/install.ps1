@@ -105,6 +105,11 @@ try {
     if ($RD_RELAY) { & $exe --option "relay-server" "$RD_RELAY" | Out-Null }
     if ($RD_API)   { & $exe --option "api-server"   "$RD_API"   | Out-Null }
 
+    # Întărire: nu permite modificarea configului de la distanță (rămâne pe
+    # serverul companiei), oprește verificarea de update (fără contact cu internetul).
+    & $exe --option "allow-remote-config-modification" "N" | Out-Null
+    & $exe --option "enable-check-update" "N" | Out-Null
+
     # 4. Mod de acces nesupravegheat
     Log "Configurez accesul nesupravegheat (approve-mode=$RD_APPROVE_MODE)..."
     & $exe --option "verification-method" "use-permanent-password" | Out-Null

@@ -83,3 +83,33 @@ Settings → Network: ID Server `172.17.17.115`, Relay `172.17.17.115`, Key =
 - Parolele dispozitivelor sunt criptate în repaus pe server și dezvăluite doar
   tehnicienilor autentificați; fiecare dezvăluire e în jurnalul de audit.
 - Oprire: `docker compose -f /srv/apps/rustdesk/compose.yaml down` (datele rămân în `./data`).
+
+---
+
+## Securitate (întărire „nimic nu iese din infrastructură")
+
+Garanția că datele NU părăsesc serverul vostru stă pe 4 piloni:
+
+1. **Server self-hosted.** hbbs/hbbr rulează pe appsrv1. Ecranul + comenzile trec
+   prin releul vostru (hbbr), **criptate end-to-end cu cheia voastră**. Serverele
+   publice RustDesk nu sunt implicate.
+2. **Cheie obligatorie.** Clientul folosește `custom-rendezvous-server` + `key`.
+   Un client fără cheia corectă nu se poate conecta la serverul vostru, iar al
+   vostru nu vorbește cu servere publice (cheie diferită). Configul interzice și
+   modificarea la distanță (`allow-remote-config-modification N`) și verificarea
+   de update (`enable-check-update N`) → fără contact cu internetul la rulare.
+3. **Porturi doar pe IP intern.** `compose.yaml` leagă porturile pe
+   `172.17.17.115`, nu pe toate interfețele → accesibile exclusiv din LAN/VPN.
+   **De confirmat:** appsrv1 NU are IP public / port-forward de pe internet spre
+   porturile 21115-21119. Dacă are, sunteți expuși — închideți-le.
+4. **Zero descărcare la instalare (opțional, maxim închis).** Ca nici măcar
+   programul să nu vină din online:
+   - Descărcați O DATĂ `rustdesk-<versiune>-x86_64.exe` de pe GitHub-ul oficial
+     RustDesk, redenumiți-l `rustdesk.exe`.
+   - Puneți-l în `remote-intune\unificat\` (lângă instalator) **și** în
+     `remote-intune\rustdesk\` (pentru clientul tehnicianului).
+   - În `unificat\config.ps1` setați `$RD_FALLBACK_DOWNLOAD = $false`.
+   Astfel instalatorul folosește exe-ul local, fără nicio descărcare.
+
+Verificare rapidă că un capăt e pe serverul vostru: în RustDesk → Settings →
+Network → **ID Server = 172.17.17.115** și jos scrie **„Ready"**.
